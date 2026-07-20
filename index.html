@@ -519,18 +519,12 @@ function computeGeometryPoints(f, wheelR){
   const seatAngleRad = f.seatAngleDeg * Math.PI/180;
   const seatTop = new THREE.Vector3(bb.x - f.stack/Math.tan(seatAngleRad), headTop.y, 0);
 
-  // tige de selle apparente (longueur visuelle constante, dans l'axe de selle)
-  const seatDir = new THREE.Vector3(-Math.cos(seatAngleRad), Math.sin(seatAngleRad), 0);
-  const seatPost = new THREE.Vector3(
-    seatTop.x + 0.09*seatDir.x,
-    seatTop.y + 0.09*seatDir.y, 0);
-
   const seatStayAttach = seatTop.clone(); // haubans attachés en haut du tube de selle
 
   const centerX = frontHub.x / 2;
-  [rearHub, frontHub, bb, headTop, headBottom, seatTop, seatPost, seatStayAttach].forEach(p => { p.x -= centerX; });
+  [rearHub, frontHub, bb, headTop, headBottom, seatTop, seatStayAttach].forEach(p => { p.x -= centerX; });
 
-  return { rearHub, frontHub, bb, headTop, headBottom, seatTop, seatPost, seatStayAttach, wheelR };
+  return { rearHub, frontHub, bb, headTop, headBottom, seatTop, seatStayAttach, wheelR };
 }
 
 const BRAND_COLOR = { 'Shimano':'#3fa9f5', 'SRAM':'#e0942c', 'Campagnolo':'#b06bd1', '—':'#6b7280' };
@@ -916,7 +910,6 @@ function buildFrame(frameItem){
   g.add(tube(pts.seatTop, pts.headTop, r.top, frameTubeMat));        // tube supérieur
   g.add(tube(pts.bb, pts.headBottom, r.down, frameTubeMat));         // tube diagonal
   g.add(tube(pts.bb, pts.seatTop, r.seat, frameTubeMat));            // tube de selle
-  g.add(tube(pts.seatTop, pts.seatPost, r.seatpost, frameTubeMat));  // tige de selle
   g.add(tube(pts.headBottom, pts.headTop, r.head, frameTubeMat));    // tube de direction
 
   // boîtier de pédalier BSA (route) : coquille filetée 68 mm de large,
