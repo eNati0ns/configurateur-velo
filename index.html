@@ -875,10 +875,12 @@ const FORK_COLOR  = 0x4a4a4a;   // gris foncé
 const frameTubeMat = mat(FRAME_COLOR, { metalness:0.25, roughness:0.45 });
 const forkTubeMat  = mat(FORK_COLOR,  { metalness:0.45, roughness:0.40 });
 
-/* Diamètres de tube — aucune donnée constructeur, proportions visuelles
-   réalistes (tube diagonal épais, haubans fins) et identiques pour TOUS
-   les cadres. */
-const DEFAULT_TUBE_R = { top:0.014, down:0.021, seat:0.014, head:0.017, chainstay:0.011, seatstay:0.009, fork:0.015, seatpost:0.0125 };
+/* Rayons de tube (mètres), calés sur des diamètres réels de vélo route à
+   l'échelle de la roue 700C, identiques pour TOUS les cadres. Hiérarchie :
+   tube de direction & diagonal les plus épais, top/seat égaux et moyens,
+   fourche + triangle arrière fins et gradés (bases > fourche > haubans).
+     head 42 · down 38 · top/seat 30 · seatpost 27 · chainstay 22 · fork 20 · seatstay 15 (mm ⌀) */
+const DEFAULT_TUBE_R = { top:0.015, down:0.019, seat:0.015, head:0.021, chainstay:0.011, seatstay:0.0075, fork:0.010, seatpost:0.0135 };
 
 /* Demi-largeurs (en Z, de part et d'autre du plan central du vélo) des
    points où bases/haubans/fourche s'écartent pour enjamber la roue. Le plan
