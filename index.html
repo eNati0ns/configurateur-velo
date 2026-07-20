@@ -172,6 +172,34 @@
   .option.invalid{ border-color: var(--warn); background: var(--warn-bg); }
   .option.invalid .weight{ color: var(--warn); }
 
+  /* ---------- Frame picker (model search + size) ---------- */
+  .frame-picker{ display:flex; flex-direction:column; gap:12px; }
+  .field-label{
+    display:block; font-family:'JetBrains Mono',monospace; font-size:10px;
+    color: var(--text-faint); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:6px;
+  }
+  .frame-picker input[type="text"], .frame-picker select{
+    width:100%; background: var(--bg-2); border:1px solid var(--border-soft);
+    color: var(--text); font-family:'Space Grotesk', sans-serif; font-size:13px;
+    padding:9px 10px; border-radius: var(--radius); appearance:none;
+  }
+  .frame-picker select{
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+    background-position: calc(100% - 16px) center, calc(100% - 11px) center;
+    background-size: 5px 5px, 5px 5px; background-repeat:no-repeat;
+    cursor:pointer;
+  }
+  .frame-picker input[type="text"]:focus, .frame-picker select:focus{
+    outline:none; border-color: var(--accent);
+  }
+  .frame-picker input[type="text"]::placeholder{ color: var(--text-faint); }
+  .frame-picker select:disabled{ opacity:0.4; cursor:default; }
+  .frame-meta{
+    display:flex; align-items:center; gap:8px; margin-top:2px;
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; color: var(--text-faint);
+  }
+  .frame-meta .dot{ flex-shrink:0; }
+
   #reset-btn{
     width:100%; margin-top:6px; padding:10px;
     background:transparent; border:1px dashed var(--border);
@@ -560,30 +588,108 @@ function renderPanel(){
       wrap.appendChild(desc);
     }
 
-    PARTS_DATA[cat].forEach(part => {
-      const btn = document.createElement('button');
-      btn.className = 'option';
-      btn.dataset.cat = cat;
-      btn.dataset.id = part.id;
-      const color = part.swatch || BRAND_COLOR[part.brand] || '#6b7280';
-      const modelLabel = cat === 'frame' ? `${part.model} — Taille ${part.taille}` : part.model;
-      btn.innerHTML = `
-        <span class="dot" style="background:${color}"></span>
-        <span class="label">
-          <span class="brand">${part.brand}</span>
-          <span class="model">${modelLabel}</span>
-        </span>
-        <span class="weight mono">${part.weight ? part.weight + 'g' : '—'}</span>
-      `;
-      btn.addEventListener('click', () => {
-        selection[cat] = part.id;
-        update();
+    if (cat === 'frame'){
+      renderFramePicker(wrap);
+    } else {
+      PARTS_DATA[cat].forEach(part => {
+        const btn = document.createElement('button');
+        btn.className = 'option';
+        btn.dataset.cat = cat;
+        btn.dataset.id = part.id;
+        const color = part.swatch || BRAND_COLOR[part.brand] || '#6b7280';
+        btn.innerHTML = `
+          <span class="dot" style="background:${color}"></span>
+          <span class="label">
+            <span class="brand">${part.brand}</span>
+            <span class="model">${part.model}</span>
+          </span>
+          <span class="weight mono">${part.weight ? part.weight + 'g' : '—'}</span>
+        `;
+        btn.addEventListener('click', () => {
+          selection[cat] = part.id;
+          update();
+        });
+        wrap.appendChild(btn);
       });
-      wrap.appendChild(btn);
-    });
+    }
 
     categoriesEl.appendChild(wrap);
   });
+}
+
+/* ============================================================
+   SÉLECTEUR DE CADRE — recherche de modèle + taille
+   Groupe les entrées de PARTS_DATA.frame par nom de modèle (plusieurs
+   tailles par modèle). Pensé pour grossir : la recherche reste utilisable
+   même avec beaucoup de cadres au catalogue.
+   ============================================================ */
+let frameModelInputEl = null, frameSizeSelectEl = null, frameMetaEl = null;
+
+function frameModelGroups(){
+  const groups = {};
+  PARTS_DATA.frame.forEach(p => {
+    (groups[p.model] = groups[p.model] || []).push(p);
+  });
+  return groups;
+}
+
+function populateFrameSizes(modelName, preferId){
+  const groups = frameModelGroups();
+  const list = groups[modelName] || [];
+  frameSizeSelectEl.innerHTML = list.map(p => `<option value="${p.id}">${p.taille}</option>`).join('');
+  frameSizeSelectEl.disabled = list.length === 0;
+  const target = list.find(p => p.id === preferId) || list[0];
+  if (target) frameSizeSelectEl.value = target.id;
+  return target;
+}
+
+function syncFramePickerUI(){
+  if (!frameModelInputEl) return;
+  const part = findPart('frame', selection.frame);
+  frameModelInputEl.value = part.model;
+  populateFrameSizes(part.model, part.id);
+  const color = part.swatch || '#6b7280';
+  frameMetaEl.innerHTML = `<span class="dot" style="background:${color}"></span><span>${part.weight ? part.weight + ' g' : '—'}</span>`;
+}
+
+function renderFramePicker(wrap){
+  const groups = frameModelGroups();
+  const modelNames = Object.keys(groups);
+  const current = findPart('frame', selection.frame);
+
+  const picker = document.createElement('div');
+  picker.className = 'frame-picker';
+  picker.innerHTML = `
+    <div>
+      <label class="field-label" for="frame-model-input">Modèle</label>
+      <input type="text" id="frame-model-input" list="frame-model-list" placeholder="Rechercher un cadre…" autocomplete="off" value="${current.model}">
+      <datalist id="frame-model-list">${modelNames.map(n => `<option value="${n}">`).join('')}</datalist>
+    </div>
+    <div>
+      <label class="field-label" for="frame-size-select">Taille</label>
+      <select id="frame-size-select"></select>
+    </div>
+    <div class="frame-meta" id="frame-meta"></div>
+  `;
+  wrap.appendChild(picker);
+
+  frameModelInputEl = picker.querySelector('#frame-model-input');
+  frameSizeSelectEl = picker.querySelector('#frame-size-select');
+  frameMetaEl = picker.querySelector('#frame-meta');
+
+  frameModelInputEl.addEventListener('input', () => {
+    const name = frameModelInputEl.value.trim();
+    if (!groups[name]) return; // texte partiel non reconnu, on attend une correspondance exacte (choisie dans la liste)
+    const target = populateFrameSizes(name);
+    if (target){ selection.frame = target.id; update(); }
+  });
+
+  frameSizeSelectEl.addEventListener('change', () => {
+    selection.frame = frameSizeSelectEl.value;
+    update();
+  });
+
+  syncFramePickerUI();
 }
 
 document.getElementById('reset-btn').addEventListener('click', () => {
@@ -908,7 +1014,9 @@ function renderGeometryPanel(frameItem){
   if (!frameItem || !frameItem._raw){ panel.innerHTML = ''; return; }
 
   const raw = frameItem._raw;
-  const rowsHtml = GEOM_FIELDS.map(f => `<tr>
+  const rowsHtml = GEOM_FIELDS
+    .filter(f => raw[f.key] !== undefined && raw[f.key] !== null)
+    .map(f => `<tr>
       <td class="geom-label">${f.label}</td>
       <td class="geom-value">${raw[f.key]}</td>
       <td class="geom-unit">${f.unit}</td>
@@ -925,6 +1033,8 @@ function renderGeometryPanel(frameItem){
 }
 
 function update(){
+  syncFramePickerUI();
+
   const issues = framesetOnly ? [] : computeIssues(selection);
   const flagged = renderSummary(issues);
 
