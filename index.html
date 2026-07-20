@@ -272,7 +272,14 @@
   .geom-value{ font-family:'JetBrains Mono',monospace; text-align:right; color: var(--text); }
   .geom-unit{ color: var(--text-faint); font-size:10px; width:26px; }
 
-  /* ---------- Cockpit : éditeur de potence ---------- */
+  /* ---------- Cockpit : sous-sections & éditeurs ---------- */
+  .cockpit-sub{ margin-top:14px; }
+  .cockpit-sub:first-of-type{ margin-top:4px; }
+  .cockpit-sub-head{
+    display:flex; align-items:center; gap:7px; margin-bottom:7px;
+    font-size:12px; font-weight:600; color: var(--text);
+  }
+  .cockpit-sub-head .swatch{ width:9px; height:9px; border-radius:2px; flex-shrink:0; }
   .stem-editor{ display:flex; flex-direction:column; gap:7px; margin-top:2px; }
   .stem-row{ display:flex; align-items:center; gap:8px; }
   .stem-row label{ flex:1; font-size:12px; color: var(--text-dim); }
@@ -284,12 +291,12 @@
   .stem-row input:focus{ outline:none; border-color: var(--accent); }
   .stem-row input.changed{ border-color:#e8912f; color:#e8912f; }
   .stem-row .stem-unit{ width:20px; font-size:10px; color: var(--text-faint); }
-  #stem-apply{
+  .param-apply{
     margin-top:4px; padding:9px 12px; border-radius: var(--radius); cursor:pointer;
     font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase;
-    background:transparent; border:1px solid var(--border); color: var(--text-faint);
+    background:transparent; border:1px solid var(--border); color: var(--text-faint); width:100%;
   }
-  #stem-apply.pending{ background:#e8912f; border-color:#e8912f; color:#141414; font-weight:600; }
+  .param-apply.pending{ background:#e8912f; border-color:#e8912f; color:#141414; font-weight:600; }
   /* en-tête de groupe dans le tableau (Entrées / Valeurs dérivées) */
   tr.geom-group td{
     padding-top:9px; padding-bottom:4px;
@@ -537,6 +544,18 @@ const STEM_FIELDS = [
 let stemDraft   = { ...STEM_STANDARD };
 let stemApplied = { ...STEM_STANDARD };
 
+/* Cintre (handlebar) — largeurs haut/bas distinctes : si elles diffèrent,
+   les drops s'évasent (flare). Égales par défaut = pas de flare. */
+const HBAR_STANDARD = { reach_mm:80, drop_mm:128, width_top_mm:400, width_bottom_mm:400 };
+const HBAR_FIELDS = [
+  { key:'reach_mm',         label:'Reach',        unit:'mm' },
+  { key:'drop_mm',          label:'Drop',         unit:'mm' },
+  { key:'width_top_mm',     label:'Largeur haut', unit:'mm' },
+  { key:'width_bottom_mm',  label:'Largeur bas',  unit:'mm' },
+];
+let hbarDraft   = { ...HBAR_STANDARD };
+let hbarApplied = { ...HBAR_STANDARD };
+
 /* ============================================================
    UI — panneau gauche
    ============================================================ */
@@ -573,52 +592,69 @@ function renderPanel(){
 }
 
 /* ============================================================
-   COCKPIT — rendu du tableau éditable de la potence
+   COCKPIT — deux sous-sections éditables : Potence & Cintre
    ============================================================ */
+const COCKPIT_COLORS = { stem:'#2fbf6b', hbar:'#efc93a' }; // pastilles = couleurs 3D
+
 function renderCockpit(){
-  const std = STEM_STANDARD;
   const wrap = document.createElement('div');
   wrap.className = 'category';
-  wrap.innerHTML = `
-    <div class="category-head"><span class="name">Cockpit</span><span class="idx mono">01</span></div>
-    <div class="category-desc">Potence (vert) — standard ${std.length_mm} mm · +${std.angle_deg}° · steerer ${std.steerer_mm} / cintre ${std.bar_clamp_mm} mm · spacers ${std.spacers_mm} mm (rouge, 0 = aucun). Modifie une valeur puis applique.</div>`;
-  const editor = document.createElement('div');
-  editor.className = 'stem-editor';
-  editor.innerHTML = STEM_FIELDS.map(f => `
-    <div class="stem-row">
-      <label for="stem-${f.key}">${f.label}</label>
-      <input id="stem-${f.key}" type="number" step="0.1" value="${stemDraft[f.key]}" data-key="${f.key}">
-      <span class="stem-unit">${f.unit}</span>
-    </div>`).join('') + `<button id="stem-apply">Appliquer à la 3D</button>`;
-  wrap.appendChild(editor);
+  wrap.innerHTML = `<div class="category-head"><span class="name">Cockpit</span><span class="idx mono">01</span></div>`;
   categoriesEl.appendChild(wrap);
 
+  renderParamEditor(wrap, {
+    title:'Potence', swatch:COCKPIT_COLORS.stem, idPrefix:'stem',
+    fields:STEM_FIELDS, standard:STEM_STANDARD, draft:stemDraft, applied:stemApplied,
+    apply:() => Object.assign(stemApplied, stemDraft),
+  });
+  renderParamEditor(wrap, {
+    title:'Cintre', swatch:COCKPIT_COLORS.hbar, idPrefix:'hbar',
+    fields:HBAR_FIELDS, standard:HBAR_STANDARD, draft:hbarDraft, applied:hbarApplied,
+    apply:() => Object.assign(hbarApplied, hbarDraft),
+  });
+}
+
+/* Éditeur paramétrable générique (une sous-section) : champs éditables,
+   surlignage orange quand ≠ standard, bouton Appliquer orange quand des
+   changements restent à pousser en 3D. */
+function renderParamEditor(parent, o){
+  const sub = document.createElement('div');
+  sub.className = 'cockpit-sub';
+  sub.innerHTML = `<div class="cockpit-sub-head"><span class="swatch" style="background:${o.swatch}"></span>${o.title}</div>`;
+  const editor = document.createElement('div');
+  editor.className = 'stem-editor';
+  editor.innerHTML = o.fields.map(f => `
+    <div class="stem-row">
+      <label for="${o.idPrefix}-${f.key}">${f.label}</label>
+      <input id="${o.idPrefix}-${f.key}" type="number" step="0.1" value="${o.draft[f.key]}" data-key="${f.key}">
+      <span class="stem-unit">${f.unit}</span>
+    </div>`).join('') + `<button class="param-apply" id="${o.idPrefix}-apply">Appliquer à la 3D</button>`;
+  sub.appendChild(editor);
+  parent.appendChild(sub);
+
+  const refresh = () => {
+    o.fields.forEach(f => {
+      const inp = document.getElementById(`${o.idPrefix}-${f.key}`);
+      if (inp) inp.classList.toggle('changed', Number(o.draft[f.key]) !== Number(o.standard[f.key]));
+    });
+    const btn = document.getElementById(`${o.idPrefix}-apply`);
+    const pending = o.fields.some(f => Number(o.draft[f.key]) !== Number(o.applied[f.key]));
+    btn.classList.toggle('pending', pending);
+    btn.textContent = pending ? 'Appliquer à la 3D' : 'Appliqué';
+  };
   editor.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('input', () => {
       const v = parseFloat(inp.value);
-      if (!isNaN(v)) stemDraft[inp.dataset.key] = v;
-      refreshStemEditorState();
+      if (!isNaN(v)) o.draft[inp.dataset.key] = v;
+      refresh();
     });
   });
-  editor.querySelector('#stem-apply').addEventListener('click', () => {
-    stemApplied = { ...stemDraft };
+  editor.querySelector('.param-apply').addEventListener('click', () => {
+    o.apply();      // recopie draft -> applied (mutation en place)
     update();
-    refreshStemEditorState();
+    refresh();
   });
-  refreshStemEditorState();
-}
-
-function refreshStemEditorState(){
-  STEM_FIELDS.forEach(f => {
-    const inp = document.getElementById('stem-' + f.key);
-    if (inp) inp.classList.toggle('changed', Number(stemDraft[f.key]) !== Number(STEM_STANDARD[f.key]));
-  });
-  const btn = document.getElementById('stem-apply');
-  if (btn){
-    const pending = STEM_FIELDS.some(f => Number(stemDraft[f.key]) !== Number(stemApplied[f.key]));
-    btn.classList.toggle('pending', pending);
-    btn.textContent = pending ? 'Appliquer à la 3D' : 'Appliqué';
-  }
+  refresh();
 }
 
 /* ============================================================
@@ -703,8 +739,10 @@ function renderFramePicker(wrap){
 
 document.getElementById('reset-btn').addEventListener('click', () => {
   selection = { ...DEFAULT_SELECTION };
-  stemDraft = { ...STEM_STANDARD };
-  stemApplied = { ...STEM_STANDARD };
+  Object.assign(stemDraft, STEM_STANDARD);
+  Object.assign(stemApplied, STEM_STANDARD);
+  Object.assign(hbarDraft, HBAR_STANDARD);
+  Object.assign(hbarApplied, HBAR_STANDARD);
   renderPanel();
   update();
 });
@@ -735,10 +773,21 @@ function renderSummary(){
   stemRow.innerHTML = `
     <div style="flex:1; min-width:0;">
       <span class="rlabel">POTENCE</span>
-      <span class="rvalue">${stemApplied.length_mm} mm · ${stemApplied.angle_deg >= 0 ? '+' : ''}${stemApplied.angle_deg}°</span>
+      <span class="rvalue">${stemApplied.length_mm} mm · ${stemApplied.angle_deg >= 0 ? '+' : ''}${stemApplied.angle_deg}° · spacers ${stemApplied.spacers_mm} mm</span>
     </div>
     <span class="rweight mono">—</span>`;
   rowsEl.appendChild(stemRow);
+
+  const flare = hbarApplied.width_bottom_mm - hbarApplied.width_top_mm;
+  const hbarRow = document.createElement('div');
+  hbarRow.className = 'row';
+  hbarRow.innerHTML = `
+    <div style="flex:1; min-width:0;">
+      <span class="rlabel">CINTRE</span>
+      <span class="rvalue">reach ${hbarApplied.reach_mm} · drop ${hbarApplied.drop_mm} mm${flare !== 0 ? ` · flare ${flare > 0 ? '+' : ''}${flare} mm` : ''}</span>
+    </div>
+    <span class="rweight mono">—</span>`;
+  rowsEl.appendChild(hbarRow);
 
   totalWeightEl.textContent = (frame.weight || 0).toLocaleString('fr-CH') + ' g';
   statusEl.className = 'status ok';
@@ -873,30 +922,39 @@ function buildFrame(frameItem){
   return { group: g, points: pts };
 }
 
-/* Potence (cockpit) — composant paramétrable. Se serre sur le pivot de
-   fourche (steerer) au-dessus de la pile de spacers, part vers l'avant selon
-   l'angle jusqu'au collier de cintre. Corps + 2 colliers en vert ; les
-   spacers (rouge) empilés sous la potence la font monter d'autant. */
+/* Couleurs cockpit */
 const STEM_COLOR   = 0x2fbf6b; // potence : vert
 const SPACER_COLOR = 0xe0463a; // spacers : rouge
+const HBAR_COLOR   = 0xefc93a; // cintre : jaune
 const stemMat   = mat(STEM_COLOR,   { metalness:0.45, roughness:0.40 });
 const spacerMat = mat(SPACER_COLOR, { metalness:0.35, roughness:0.50 });
+const hbarMat   = mat(HBAR_COLOR,   { metalness:0.40, roughness:0.40 });
 
-function buildStem(P, stem){
-  const g = new THREE.Group();
-  // axe du pivot de fourche = du bas vers le haut du tube de direction
+/* Géométrie de la potence : renvoie le collier steerer (p0), le collier de
+   cintre (p1) et les axes utiles. Partagé par la potence et le cintre. */
+function stemClampPoint(P, stem){
   const axisUp = new THREE.Vector3().subVectors(P.headTop, P.headBottom).normalize();
-  // perpendiculaire dans le plan, vers l'avant (potence à 0°)
-  const perpFwd = V(axisUp.y, -axisUp.x, 0);
-  const th = (stem.angle_deg || 0) * Math.PI/180; // + = vers le haut
+  const perpFwd = V(axisUp.y, -axisUp.x, 0); // perpendiculaire, vers l'avant (0°)
+  const th = (stem.angle_deg || 0) * Math.PI/180;
   const stemDir = V(
     perpFwd.x*Math.cos(th) - perpFwd.y*Math.sin(th),
     perpFwd.x*Math.sin(th) + perpFwd.y*Math.cos(th), 0
   ).normalize();
+  const clampH = 0.032;
+  const spacerH = Math.max(stem.spacers_mm || 0, 0) / 1000;
+  const p0 = new THREE.Vector3().copy(P.headTop).addScaledVector(axisUp, spacerH + clampH/2);
+  const len = (stem.length_mm || 100) / 1000;
+  const p1 = new THREE.Vector3().copy(p0).addScaledVector(stemDir, len);
+  return { axisUp, stemDir, p0, p1, clampH, spacerH };
+}
 
+/* Potence (cockpit) — se serre sur le pivot de fourche au-dessus des spacers,
+   part vers l'avant selon l'angle jusqu'au collier de cintre. Corps + 2
+   colliers en vert ; spacers (rouge) empilés sous la potence. */
+function buildStem(P, stem){
+  const g = new THREE.Group();
+  const { axisUp, p0, p1, clampH, spacerH } = stemClampPoint(P, stem);
   const steererR = (stem.steerer_mm || 28.6)/2000 + 0.004; // rayon colliers / spacers
-  const clampH = 0.032;                                     // hauteur du collier steerer
-  const spacerH = Math.max(stem.spacers_mm || 0, 0) / 1000; // pile de spacers
 
   // pile de spacers (rouge) au-dessus du tube de direction, si > 0
   if (spacerH > 0){
@@ -906,11 +964,6 @@ function buildStem(P, stem){
     g.add(sp);
   }
 
-  // la potence se pose au-dessus des spacers
-  const p0 = new THREE.Vector3().copy(P.headTop).addScaledVector(axisUp, spacerH + clampH/2); // collier steerer
-  const len = (stem.length_mm || 100) / 1000;
-  const p1 = new THREE.Vector3().copy(p0).addScaledVector(stemDir, len);                       // collier cintre
-
   g.add(tube(p0, p1, 0.013, stemMat)); // corps de potence (vert)
 
   // collier steerer (vert, axe = axisUp)
@@ -919,12 +972,43 @@ function buildStem(P, stem){
   sc.position.copy(p0);
   g.add(sc);
 
-  // collier cintre (vert, axe = Z, le cintre passera gauche-droite)
+  // collier cintre (vert, axe = Z, le cintre passe gauche-droite)
   const barR = (stem.bar_clamp_mm || 31.8)/2000 + 0.003;
   const bc = new THREE.Mesh(new THREE.CylinderGeometry(barR, barR, 0.042, 16), stemMat);
   bc.rotation.x = Math.PI/2;
   bc.position.copy(p1);
   g.add(bc);
+
+  return g;
+}
+
+/* Cintre (drop bar) — barre du haut (le long de Z) passant par le collier de
+   potence, puis deux drops en courbe lisse : reach vers l'avant, drop vers le
+   bas. Largeurs haut/bas distinctes → évasement (flare) quand elles diffèrent.
+   Largeur fixe (non éditable) : seules reach/drop/largeurs sont réglables. */
+function buildHandlebar(P, stem, hbar){
+  const g = new THREE.Group();
+  const { p1 } = stemClampPoint(P, stem);   // centre du collier de cintre
+  const cx = p1.x, cy = p1.y;
+  const reach = (hbar.reach_mm || 80) / 1000;
+  const drop  = (hbar.drop_mm  || 128) / 1000;
+  const hwt = (hbar.width_top_mm    || 400) / 2000; // demi-largeur haut
+  const hwb = (hbar.width_bottom_mm || 400) / 2000; // demi-largeur bas
+
+  // barre du haut (le long de Z, traverse le collier)
+  g.add(tube(V(cx, cy, -hwt), V(cx, cy, hwt), 0.013, hbarMat));
+
+  // drops gauche/droite — courbe lisse ; l'écart hwt→hwb crée le flare
+  [1, -1].forEach(side => {
+    const zt = side*hwt, zb = side*hwb;
+    const curve = new THREE.CatmullRomCurve3([
+      V(cx,              cy,            zt),                // bout des tops
+      V(cx + reach,      cy,            zt + (zb-zt)*0.3),  // avant (hoods) — reach maxi
+      V(cx + reach,      cy - drop*0.6, zt + (zb-zt)*0.7),  // descente
+      V(cx + reach*0.55, cy - drop,     zb),                // bout du drop (largeur bas)
+    ]);
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.012, 10, false), hbarMat));
+  });
 
   return g;
 }
@@ -991,8 +1075,9 @@ function update(){
   replaceGroup('frame', built.group);
   currentPoints = built.points;
 
-  // cockpit — potence
+  // cockpit — potence + cintre
   replaceGroup('stem', buildStem(currentPoints, stemApplied));
+  replaceGroup('handlebar', buildHandlebar(currentPoints, stemApplied, hbarApplied));
 }
 
 /* ============================================================
