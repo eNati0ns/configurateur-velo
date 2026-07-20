@@ -546,12 +546,13 @@ let stemApplied = { ...STEM_STANDARD };
 
 /* Cintre (handlebar) — largeurs haut/bas distinctes : si elles diffèrent,
    les drops s'évasent (flare). Égales par défaut = pas de flare. */
-const HBAR_STANDARD = { reach_mm:80, drop_mm:128, width_top_mm:400, width_bottom_mm:400 };
+const HBAR_STANDARD = { reach_mm:80, drop_mm:128, width_top_mm:400, width_bottom_mm:400, angle_deg:-10 };
 const HBAR_FIELDS = [
   { key:'reach_mm',         label:'Reach',        unit:'mm' },
   { key:'drop_mm',          label:'Drop',         unit:'mm' },
   { key:'width_top_mm',     label:'Largeur haut', unit:'mm' },
   { key:'width_bottom_mm',  label:'Largeur bas',  unit:'mm' },
+  { key:'angle_deg',        label:'Angle',        unit:'°'  },
 ];
 let hbarDraft   = { ...HBAR_STANDARD };
 let hbarApplied = { ...HBAR_STANDARD };
@@ -784,7 +785,7 @@ function renderSummary(){
   hbarRow.innerHTML = `
     <div style="flex:1; min-width:0;">
       <span class="rlabel">CINTRE</span>
-      <span class="rvalue">reach ${hbarApplied.reach_mm} · drop ${hbarApplied.drop_mm} mm${flare !== 0 ? ` · flare ${flare > 0 ? '+' : ''}${flare} mm` : ''}</span>
+      <span class="rvalue">reach ${hbarApplied.reach_mm} · drop ${hbarApplied.drop_mm} mm · ${hbarApplied.angle_deg >= 0 ? '+' : ''}${hbarApplied.angle_deg}°${flare !== 0 ? ` · flare ${flare > 0 ? '+' : ''}${flare} mm` : ''}</span>
     </div>
     <span class="rweight mono">—</span>`;
   rowsEl.appendChild(hbarRow);
@@ -985,27 +986,34 @@ function buildStem(P, stem){
 /* Cintre (drop bar) — barre du haut (le long de Z) passant par le collier de
    potence, puis deux drops en courbe lisse : reach vers l'avant, drop vers le
    bas. Largeurs haut/bas distinctes → évasement (flare) quand elles diffèrent.
-   Largeur fixe (non éditable) : seules reach/drop/largeurs sont réglables. */
+   L'angle incline tout le cintre autour de l'axe du collier, mesuré par
+   rapport à l'horizontale du vélo (négatif = nez plongé vers l'avant-bas). */
 function buildHandlebar(P, stem, hbar){
   const g = new THREE.Group();
   const { p1 } = stemClampPoint(P, stem);   // centre du collier de cintre
-  const cx = p1.x, cy = p1.y;
   const reach = (hbar.reach_mm || 80) / 1000;
   const drop  = (hbar.drop_mm  || 128) / 1000;
   const hwt = (hbar.width_top_mm    || 400) / 2000; // demi-largeur haut
   const hwb = (hbar.width_bottom_mm || 400) / 2000; // demi-largeur bas
+  const a = (hbar.angle_deg || 0) * Math.PI/180;    // rotation autour du collier (Z)
+
+  // place un point du profil local (u = avant horizontal, v = haut) après
+  // rotation de l'angle, puis translation au collier. + de rotation lève le
+  // nez ; l'angle standard négatif fait plonger l'avant vers le bas.
+  const ca = Math.cos(a), sa = Math.sin(a);
+  const place = (u, v, z) => V(p1.x + u*ca - v*sa, p1.y + u*sa + v*ca, z);
 
   // barre du haut (le long de Z, traverse le collier)
-  g.add(tube(V(cx, cy, -hwt), V(cx, cy, hwt), 0.013, hbarMat));
+  g.add(tube(place(0, 0, -hwt), place(0, 0, hwt), 0.013, hbarMat));
 
   // drops gauche/droite — courbe lisse ; l'écart hwt→hwb crée le flare
   [1, -1].forEach(side => {
     const zt = side*hwt, zb = side*hwb;
     const curve = new THREE.CatmullRomCurve3([
-      V(cx,              cy,            zt),                // bout des tops
-      V(cx + reach,      cy,            zt + (zb-zt)*0.3),  // avant (hoods) — reach maxi
-      V(cx + reach,      cy - drop*0.6, zt + (zb-zt)*0.7),  // descente
-      V(cx + reach*0.55, cy - drop,     zb),                // bout du drop (largeur bas)
+      place(0,          0,          zt),                // bout des tops
+      place(reach,      0,          zt + (zb-zt)*0.3),  // avant (hoods) — reach maxi
+      place(reach,     -drop*0.6,   zt + (zb-zt)*0.7),  // descente
+      place(reach*0.4, -drop,       zb),                // bout du drop (bas, ramené vers l'arrière)
     ]);
     g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.012, 10, false), hbarMat));
   });
