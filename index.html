@@ -880,24 +880,49 @@ const forkTubeMat  = mat(FORK_COLOR,  { metalness:0.45, roughness:0.40 });
    les cadres. */
 const DEFAULT_TUBE_R = { top:0.014, down:0.021, seat:0.014, head:0.017, chainstay:0.011, seatstay:0.009, fork:0.015, seatpost:0.0125 };
 
+/* Demi-largeurs (en Z, de part et d'autre du plan central du vélo) des
+   points où bases/haubans/fourche s'écartent pour enjamber la roue. Le plan
+   de la roue est Z=0 ; un pneu de 32 mm max s'étend à ±16 mm, largement à
+   l'intérieur des pattes. Valeurs proches des standards route (moyeu arrière
+   ~130 mm, avant ~100 mm) pour que les vraies roues s'insèrent ensuite. */
+const HUB = {
+  bbHalf: 0.030,        // écart des bases au niveau du boîtier de pédalier
+  rearDropoutHalf: 0.065, // patte arrière (~130 mm entre pattes)
+  seatstayTopHalf: 0.014, // haubans quasi joints en haut du tube de selle
+  frontDropoutHalf: 0.050, // patte avant (~100 mm)
+  forkCrownHalf: 0.024,   // fourreaux à la couronne
+};
+
+/* Ajoute une PAIRE de tubes symétriques (gauche/droite) : de a (décalé de
+   ±zA en Z) vers b (décalé de ±zB). Sert aux bases, haubans et fourche —
+   deux fourreaux droits qui convergent vers les pattes de roue. */
+function addTubePair(g, a, b, zA, zB, r, material){
+  g.add(tube(V(a.x, a.y, a.z + zA), V(b.x, b.y, b.z + zB), r, material));
+  g.add(tube(V(a.x, a.y, a.z - zA), V(b.x, b.y, b.z - zB), r, material));
+}
+
 /* Construit le cadre (+ fourche) à partir de la géométrie reconstruite.
-   Triangle principal + triangle arrière en blanc ; seule la fourche avant
-   est en gris prononcé. Ne dessine pas potence/cintre/selle (composants
-   séparés, pas encore ajoutés au configurateur). */
+   Triangle principal en tube unique (plan central) ; bases, haubans et
+   fourche en paires qui enjambent la roue. Triangle en blanc, fourche en
+   gris prononcé. Ne dessine pas potence/cintre/selle (composants séparés). */
 function buildFrame(frameItem){
   const pts = computeGeometryPoints(frameItem, R_WHEEL);
   const r = DEFAULT_TUBE_R;
   const g = new THREE.Group();
 
+  // triangle principal — tubes uniques dans le plan central
   g.add(tube(pts.seatTop, pts.headTop, r.top, frameTubeMat));        // tube supérieur
   g.add(tube(pts.bb, pts.headBottom, r.down, frameTubeMat));         // tube diagonal
   g.add(tube(pts.bb, pts.seatTop, r.seat, frameTubeMat));            // tube de selle
   g.add(tube(pts.seatTop, pts.seatPost, r.seatpost, frameTubeMat));  // tige de selle
   g.add(tube(pts.headBottom, pts.headTop, r.head, frameTubeMat));    // tube de direction
-  g.add(tube(pts.bb, pts.rearHub, r.chainstay, frameTubeMat));       // base
-  g.add(tube(pts.seatStayAttach, pts.rearHub, r.seatstay, frameTubeMat)); // hauban
 
-  g.add(tube(pts.headBottom, pts.frontHub, r.fork, forkTubeMat));    // fourche (gris)
+  // triangle arrière — paires qui enjambent la roue
+  addTubePair(g, pts.bb, pts.rearHub, HUB.bbHalf, HUB.rearDropoutHalf, r.chainstay, frameTubeMat);        // bases
+  addTubePair(g, pts.seatStayAttach, pts.rearHub, HUB.seatstayTopHalf, HUB.rearDropoutHalf, r.seatstay, frameTubeMat); // haubans
+
+  // fourche — paire de fourreaux (gris)
+  addTubePair(g, pts.headBottom, pts.frontHub, HUB.forkCrownHalf, HUB.frontDropoutHalf, r.fork, forkTubeMat);
 
   return { group: g, points: pts };
 }
