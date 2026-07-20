@@ -546,7 +546,9 @@ let stemApplied = { ...STEM_STANDARD };
 
 /* Cintre (handlebar) — largeurs haut/bas distinctes : si elles diffèrent,
    les drops s'évasent (flare). Égales par défaut = pas de flare. */
-const HBAR_STANDARD = { reach_mm:80, drop_mm:128, width_top_mm:400, width_bottom_mm:400, angle_deg:-10 };
+// Défauts = road bar compact (blueprint) : largeur haut 440 / bas 460 (léger
+// flare), reach 79 mm horizontal, drop 127 mm vertical, tops horizontaux (0°).
+const HBAR_STANDARD = { reach_mm:79, drop_mm:127, width_top_mm:440, width_bottom_mm:460, angle_deg:0 };
 const HBAR_FIELDS = [
   { key:'reach_mm',         label:'Reach',        unit:'mm' },
   { key:'drop_mm',          label:'Drop',         unit:'mm' },
@@ -1004,18 +1006,22 @@ function buildHandlebar(P, stem, hbar){
   const place = (u, v, z) => V(p1.x + u*ca - v*sa, p1.y + u*sa + v*ca, z);
 
   // barre du haut (le long de Z, traverse le collier)
-  g.add(tube(place(0, 0, -hwt), place(0, 0, hwt), 0.013, hbarMat));
+  g.add(tube(place(0, 0, -hwt), place(0, 0, hwt), 0.014, hbarMat));
 
-  // drops gauche/droite — courbe lisse ; l'écart hwt→hwb crée le flare
+  // drops gauche/droite — profil compact : hoods vers l'avant (reach), hook
+  // qui descend (drop), puis queue qui repart vers l'arrière-bas. L'écart
+  // hwt→hwb crée le flare. reach = avancée maxi, drop = point le plus bas.
   [1, -1].forEach(side => {
     const zt = side*hwt, zb = side*hwb;
+    const zAt = f => zt + (zb - zt) * f;
     const curve = new THREE.CatmullRomCurve3([
-      place(0,          0,          zt),                // bout des tops
-      place(reach,      0,          zt + (zb-zt)*0.3),  // avant (hoods) — reach maxi
-      place(reach,     -drop*0.6,   zt + (zb-zt)*0.7),  // descente
-      place(reach*0.4, -drop,       zb),                // bout du drop (bas, ramené vers l'arrière)
+      place(0,           0,          zt),        // bout des tops (collier)
+      place(reach,      -drop*0.08,  zAt(0.30)), // hoods — avancée maxi, juste sous les tops
+      place(reach,      -drop*0.52,  zAt(0.60)), // avant du hook, ça descend
+      place(reach*0.52, -drop,       zb),        // bas du hook (point le plus bas)
+      place(reach*0.12, -drop*0.86,  zb),        // queue du drop, ramenée vers l'arrière
     ]);
-    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.012, 10, false), hbarMat));
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 28, 0.0119, 10, false), hbarMat)); // ⌀ ~23.8
   });
 
   return g;
