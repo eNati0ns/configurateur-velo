@@ -271,6 +271,16 @@
   .geom-label{ color: var(--text-dim); white-space:nowrap; }
   .geom-value{ font-family:'JetBrains Mono',monospace; text-align:right; color: var(--text); }
   .geom-unit{ color: var(--text-faint); font-size:10px; width:26px; }
+  /* en-tête de groupe dans le tableau (Entrées / Valeurs dérivées) */
+  tr.geom-group td{
+    padding-top:9px; padding-bottom:4px;
+    font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.08em;
+    text-transform:uppercase; color: var(--text-faint);
+  }
+  /* lignes dérivées : italique gris, lisibles mais visiblement distinctes */
+  tr.geom-derived .geom-label,
+  tr.geom-derived .geom-value,
+  tr.geom-derived .geom-unit{ font-style:italic; color: var(--text-dim); }
 
   /* ---------- Responsive ---------- */
   @media (max-width: 880px){
@@ -436,25 +446,29 @@ const CATEGORY_META = {
 
 /* ============================================================
    TABLEAU DE GÉOMÉTRIE (lecture seule)
-   Affiche la fiche technique complète de la taille de cadre sélectionnée.
+   Deux groupes : d'abord les mesures qui ALIMENTENT le modèle 3D
+   (le noyau consommé par computeGeometryPoints), puis les valeurs
+   DÉRIVÉES / de référence (affichées en italique gris).
    ============================================================ */
-const GEOM_FIELDS = [
+const GEOM_FIELDS_INPUT = [
   { key:'reach_mm',             label:'Reach',                 unit:'mm' },
   { key:'stack_mm',             label:'Stack',                 unit:'mm' },
-  { key:'top_tube_effectif_mm', label:'Top Tube (effective)',  unit:'mm' },
-  { key:'seat_tube_ct_mm',      label:'Seat Tube C-T',         unit:'mm' },
   { key:'head_angle_deg',       label:'Head Angle',            unit:'°'  },
   { key:'seat_angle_deg',       label:'Seat Angle',            unit:'°'  },
   { key:'head_tube_mm',         label:'Head Tube',             unit:'mm' },
   { key:'chainstay_mm',         label:'Chainstay',             unit:'mm' },
+  { key:'bb_drop_mm',           label:'BB Drop',               unit:'mm' },
+  { key:'fork_rake_mm',         label:'Fork Rake / Offset',    unit:'mm' },
+  { key:'fork_length_a2c_mm',   label:'Fork Length (A2C)',     unit:'mm' },
+];
+const GEOM_FIELDS_DERIVED = [
+  { key:'top_tube_effectif_mm', label:'Top Tube (effective)',  unit:'mm' },
+  { key:'seat_tube_ct_mm',      label:'Seat Tube C-T',         unit:'mm' },
   { key:'wheelbase_mm',         label:'Wheelbase',             unit:'mm' },
   { key:'front_centre_mm',      label:'Front Centre',          unit:'mm' },
   { key:'standover_mm',         label:'Standover',             unit:'mm' },
-  { key:'bb_drop_mm',           label:'BB Drop',               unit:'mm' },
   { key:'bb_height_mm',         label:'BB Height',             unit:'mm' },
-  { key:'fork_rake_mm',         label:'Fork Rake / Offset',    unit:'mm' },
   { key:'trail_mm',             label:'Trail',                 unit:'mm' },
-  { key:'fork_length_a2c_mm',   label:'Fork Length (A2C)',     unit:'mm' },
   { key:'seatpost_length_mm',   label:'Seatpost Length',       unit:'mm' },
 ];
 
@@ -1040,20 +1054,28 @@ function renderGeometryPanel(frameItem){
   if (!frameItem || !frameItem._raw){ panel.innerHTML = ''; return; }
 
   const raw = frameItem._raw;
-  const rowsHtml = GEOM_FIELDS
-    .filter(f => raw[f.key] !== undefined && raw[f.key] !== null)
-    .map(f => `<tr>
+  const present = f => raw[f.key] !== undefined && raw[f.key] !== null;
+  const dataRow = (f, derived) => `<tr class="${derived ? 'geom-derived' : ''}">
       <td class="geom-label">${f.label}</td>
       <td class="geom-value">${raw[f.key]}</td>
       <td class="geom-unit">${f.unit}</td>
-    </tr>`).join('');
+    </tr>`;
+  const groupHead = txt => `<tr class="geom-group"><td colspan="3">${txt}</td></tr>`;
+
+  const inputRows = GEOM_FIELDS_INPUT.filter(present).map(f => dataRow(f, false)).join('');
+  const derivedFields = GEOM_FIELDS_DERIVED.filter(present);
+  const derivedRows = derivedFields.length
+    ? groupHead('Valeurs dérivées / référence') + derivedFields.map(f => dataRow(f, true)).join('')
+    : '';
 
   panel.innerHTML = `
     <div class="geom-head">
       <span class="geom-title">Géométrie du cadre <i>— taille ${frameItem.taille || ''}</i></span>
     </div>
     <div class="geom-table-wrap">
-      <table class="geom-table"><tbody>${rowsHtml}</tbody></table>
+      <table class="geom-table"><tbody>
+        ${groupHead('Entrées du modèle 3D')}${inputRows}${derivedRows}
+      </tbody></table>
     </div>
   `;
 }
