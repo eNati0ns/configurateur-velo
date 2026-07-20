@@ -128,6 +128,16 @@
   .legend span{ display:flex; align-items:center; gap:5px; }
   .dot{ width:7px; height:7px; border-radius:50%; display:inline-block; }
 
+  .frameset-toggle{
+    display:flex; align-items:flex-start; gap:8px;
+    padding:9px 10px; margin-bottom:16px;
+    border:1px solid var(--border-soft); border-radius: var(--radius);
+    background: rgba(79,157,222,0.05); cursor:pointer;
+  }
+  .frameset-toggle input{ margin-top:2px; accent-color: var(--accent); flex-shrink:0; }
+  .frameset-toggle span{ font-size:12px; line-height:1.4; }
+  .frameset-toggle i{ font-style:normal; color: var(--text-faint); font-size:10.5px; }
+
   .category{ margin-bottom: 22px; }
   .category-head{
     display:flex; align-items:baseline; justify-content:space-between;
@@ -246,6 +256,11 @@
       <span><i class="dot" style="background:var(--campy)"></i>Campagnolo</span>
     </div>
 
+    <label class="frameset-toggle">
+      <input type="checkbox" id="frameset-only-checkbox">
+      <span>Frameset only <i>— cadre &amp; fourche seuls, sans roues ni groupe</i></span>
+    </label>
+
     <div id="categories"></div>
 
     <button id="reset-btn">↺ Configuration par défaut</button>
@@ -313,9 +328,20 @@ if (typeof THREE === 'undefined') {
 let PARTS_DATA = null;
 
 function mapDatabase(raw){
+  const mm = v => (v ?? 0) / 1000; // les fiches techniques sont en mm, la scène 3D travaille en m
   return {
     frame: (raw.cadres || []).map(x => ({
-      id: x.id, brand: x.collection, model: x.nom, weight: x.poids_g, swatch: x.couleur, geom: x.geometrie
+      id: x.id, brand: x.collection || '', model: x.nom, weight: x.poids_g, swatch: x.couleur,
+      taille: x.taille,
+      reach: mm(x.reach_mm), stack: mm(x.stack_mm),
+      topTubeEffective: mm(x.top_tube_effectif_mm),
+      seatTubeCT: mm(x.seat_tube_ct_mm),
+      headAngleDeg: x.head_angle_deg, seatAngleDeg: x.seat_angle_deg,
+      headTubeLen: mm(x.head_tube_mm),
+      chainstay: mm(x.chainstay_mm), wheelbase: mm(x.wheelbase_mm), frontCentre: mm(x.front_centre_mm),
+      standover: mm(x.standover_mm), bbDrop: mm(x.bb_drop_mm), bbHeight: mm(x.bb_height_mm),
+      forkRake: mm(x.fork_rake_mm), trail: mm(x.trail_mm), forkLengthA2C: mm(x.fork_length_a2c_mm),
+      seatpostLength: mm(x.seatpost_length_mm),
     })),
     wheels: (raw.roues || []).map(x => ({
       id: x.id, brand: x.marque, model: x.modele, weight: x.poids_g, swatch: x.couleur, profile: x.profil_mm
@@ -343,7 +369,7 @@ async function loadDatabase(){
 }
 
 const CATEGORY_META = {
-  frame:           { label:'Cadre',               short:'CADRE',      n:'00', desc:'Chaque cadre a sa propre géométrie (empattement, angles, tubes) — pas juste sa couleur.' },
+  frame:           { label:'Cadre',               short:'CADRE',      n:'00', desc:'Géométrie exacte issue de la fiche technique du fabricant (reach, stack, angles, empattement...).' },
   wheels:          { label:'Roues',                short:'ROUES',      n:'01' },
   rearDerailleur:  { label:'Dérailleur arrière',   short:'DÉR. ARR.',  n:'02' },
   frontDerailleur: { label:'Dérailleur avant',     short:'DÉR. AVT.',  n:'03' },
@@ -351,75 +377,41 @@ const CATEGORY_META = {
   crankset:        { label:'Manivelles',           short:'MANIVELLES', n:'05' },
 };
 
-/* Géométries inspirées d'archétypes de vélos de route WorldTour :
-   aéro (tubes profilés, haubans abaissés), grimpeur (tubes fins, léger),
-   endurance (empattement plus long, boîte de direction plus haute),
-   classique (acier, tube horizontal, haubans traditionnels). Toutes les
-   longueurs sont en mètres. */
-const GEOMETRY_PRESETS = {
-  aero: {
-    chainstay:0.405, bbDrop:0.072, reach:0.385, stack:0.560,
-    headAngleDeg:73, headTubeLen:0.15, seatAngleDeg:73.5, seatTubeLen:0.50,
-    seatStayDropFrac:0.58, seatpostExposed:0.12, topTubeStyle:'sloping', flatten:true,
-    tubeR:{ top:0.016, down:0.026, seat:0.017, head:0.020, chainstay:0.012, seatstay:0.009, fork:0.017 },
-  },
-  climb: {
-    chainstay:0.405, bbDrop:0.068, reach:0.383, stack:0.575,
-    headAngleDeg:73.5, headTubeLen:0.14, seatAngleDeg:73.5, seatTubeLen:0.505,
-    seatStayDropFrac:0.85, seatpostExposed:0.13, topTubeStyle:'sloping', flatten:false,
-    tubeR:{ top:0.012, down:0.017, seat:0.012, head:0.015, chainstay:0.010, seatstay:0.008, fork:0.013 },
-  },
-  endurance: {
-    chainstay:0.420, bbDrop:0.075, reach:0.372, stack:0.600,
-    headAngleDeg:72, headTubeLen:0.19, seatAngleDeg:73, seatTubeLen:0.495,
-    seatStayDropFrac:0.95, seatpostExposed:0.14, topTubeStyle:'sloping', flatten:false,
-    tubeR:{ top:0.015, down:0.020, seat:0.015, head:0.018, chainstay:0.013, seatstay:0.011, fork:0.016 },
-  },
-  classic: {
-    chainstay:0.440, bbDrop:0.065, reach:0.365, stack:0.575,
-    headAngleDeg:72, headTubeLen:0.15, seatAngleDeg:73, seatTubeLen:0.50,
-    seatStayDropFrac:1.0, seatpostExposed:0.10, topTubeStyle:'level', flatten:false,
-    tubeR:{ top:0.011, down:0.012, seat:0.011, head:0.013, chainstay:0.009, seatstay:0.008, fork:0.012 },
-  },
-};
+/* Calcule les points d'ancrage du cadre à partir de mesures réelles
+   (fiche géométrique constructeur, en mètres après conversion).
+   BB = origine locale. Rayon de roue = R_WHEEL (indépendant du cadre,
+   défini par la roue sélectionnée séparément). Chainstay et Front Centre
+   sont des distances en ligne droite BB→moyeu (pas des projections
+   horizontales), d'où le sqrt(d² - bbDrop²) pour trouver le décalage
+   horizontal. Validé numériquement : chainstay_h + frontCentre_h ≈ wheelbase. */
+function computeGeometryPoints(f, wheelR){
+  const bbX = Math.sqrt(Math.max(f.chainstay*f.chainstay - f.bbDrop*f.bbDrop, 0.0001));
+  const bb = new THREE.Vector3(bbX, wheelR - f.bbDrop, 0);
 
-/* Calcule les points d'ancrage du cadre à partir d'une géométrie réelle :
-   empattement, drop de boîtier, reach/stack, angles de direction et de selle. */
-function computeGeometryPoints(preset, wheelR){
   const rearHub = new THREE.Vector3(0, wheelR, 0);
 
-  const bbX = Math.sqrt(Math.max(preset.chainstay*preset.chainstay - preset.bbDrop*preset.bbDrop, 0.0001));
-  const bb = new THREE.Vector3(bbX, wheelR - preset.bbDrop, 0);
+  const frontOffsetX = Math.sqrt(Math.max(f.frontCentre*f.frontCentre - f.bbDrop*f.bbDrop, 0.0001));
+  const frontHub = new THREE.Vector3(bb.x + frontOffsetX, wheelR, 0);
 
-  const headTop = new THREE.Vector3(bb.x + preset.reach, bb.y + preset.stack, 0);
+  const headTop = new THREE.Vector3(bb.x + f.reach, bb.y + f.stack, 0);
 
-  const headAngleRad = preset.headAngleDeg * Math.PI/180;
-  const hdx = preset.headTubeLen * Math.cos(headAngleRad);
-  const hdy = preset.headTubeLen * Math.sin(headAngleRad);
+  const headAngleRad = f.headAngleDeg * Math.PI/180;
+  const hdx = f.headTubeLen * Math.cos(headAngleRad);
+  const hdy = f.headTubeLen * Math.sin(headAngleRad);
   const headBottom = new THREE.Vector3(headTop.x + hdx, headTop.y - hdy, 0);
 
-  const dyToWheel = headBottom.y - wheelR;
-  const forkLen = dyToWheel / Math.sin(headAngleRad);
-  const frontHub = new THREE.Vector3(headBottom.x + forkLen*Math.cos(headAngleRad), wheelR, 0);
+  const seatAngleRad = f.seatAngleDeg * Math.PI/180;
+  const seatTop = new THREE.Vector3(bb.x - f.seatTubeCT*Math.cos(seatAngleRad), bb.y + f.seatTubeCT*Math.sin(seatAngleRad), 0);
 
-  const seatAngleRad = preset.seatAngleDeg * Math.PI/180;
-  let seatTubeLen = preset.seatTubeLen;
-  if (preset.topTubeStyle === 'level'){
-    seatTubeLen = (headTop.y - bb.y) / Math.sin(seatAngleRad);
-  }
-  const seatTop = new THREE.Vector3(bb.x - seatTubeLen*Math.cos(seatAngleRad), bb.y + seatTubeLen*Math.sin(seatAngleRad), 0);
-
-  const seatStayAttach = new THREE.Vector3().lerpVectors(bb, seatTop, preset.seatStayDropFrac);
-
-  const seatDir = new THREE.Vector3().subVectors(seatTop, bb).normalize();
-  const saddle = new THREE.Vector3().copy(seatTop).addScaledVector(seatDir, preset.seatpostExposed);
-
-  const barCenter = new THREE.Vector3(headTop.x + 0.12, headTop.y + 0.02, 0);
+  // point d'attache des haubans sur le tube de selle — à défaut de mesure
+  // précise, on les attache en haut (style traditionnel) par défaut
+  const seatStayFrac = f.seatstayDropFrac ?? 1.0;
+  const seatStayAttach = new THREE.Vector3().lerpVectors(bb, seatTop, seatStayFrac);
 
   const centerX = frontHub.x / 2;
-  [rearHub, frontHub, bb, headTop, headBottom, seatTop, seatStayAttach, saddle, barCenter].forEach(p => { p.x -= centerX; });
+  [rearHub, frontHub, bb, headTop, headBottom, seatTop, seatStayAttach].forEach(p => { p.x -= centerX; });
 
-  return { rearHub, frontHub, bb, headTop, headBottom, seatTop, seatStayAttach, saddle, barCenter, wheelR };
+  return { rearHub, frontHub, bb, headTop, headBottom, seatTop, seatStayAttach, wheelR };
 }
 
 const BRAND_COLOR = { 'Shimano':'#3fa9f5', 'SRAM':'#e0942c', 'Campagnolo':'#b06bd1', '—':'#6b7280' };
@@ -474,7 +466,7 @@ function computeIssues(sel){
 function findPart(cat, id){ return PARTS_DATA[cat].find(p => p.id === id); }
 
 let selection = {
-  frame:           'f-aero',
+  frame:           'f-sl9-52',
   wheels:          'w-alu',
   rearDerailleur:  'shim-105',
   frontDerailleur: 'shim-105-fd',
@@ -486,11 +478,19 @@ const DEFAULT_SELECTION = { ...selection };
 /* ============================================================
    UI — panneau gauche
    ============================================================ */
+let framesetOnly = false;
+const FRAME_ONLY_CATS = ['frame'];
+
 const categoriesEl = document.getElementById('categories');
+
+function visibleCategories(){
+  const all = Object.keys(PARTS_DATA);
+  return framesetOnly ? all.filter(c => FRAME_ONLY_CATS.includes(c)) : all;
+}
 
 function renderPanel(){
   categoriesEl.innerHTML = '';
-  Object.keys(PARTS_DATA).forEach(cat => {
+  visibleCategories().forEach(cat => {
     const meta = CATEGORY_META[cat];
     const wrap = document.createElement('div');
     wrap.className = 'category';
@@ -537,6 +537,12 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   update();
 });
 
+document.getElementById('frameset-only-checkbox').addEventListener('change', (e) => {
+  framesetOnly = e.target.checked;
+  renderPanel();
+  update();
+});
+
 /* ============================================================
    UI — barre résumé
    ============================================================ */
@@ -551,7 +557,7 @@ function renderSummary(issues){
 
   let total = 0;
   rowsEl.innerHTML = '';
-  Object.keys(PARTS_DATA).forEach(cat => {
+  visibleCategories().forEach(cat => {
     const part = findPart(cat, selection[cat]);
     total += part.weight || 0;
     const isWarn = flagged.has(cat);
@@ -665,48 +671,29 @@ function frameAccentMat(hex){
   const em = c.clone().multiplyScalar(0.18);
   return new THREE.MeshStandardMaterial({ color:c, metalness:0.35, roughness:0.3, emissive:em });
 }
-function frameSecondaryMat(hex){
-  const c = new THREE.Color(hex).lerp(new THREE.Color(0x2a2f38), 0.62);
-  return new THREE.MeshStandardMaterial({ color:c, metalness:0.6, roughness:0.4 });
-}
+/* Épaisseurs de tubes par défaut — pas de donnée constructeur pour ça,
+   ce sont des proportions visuelles raisonnables, identiques pour tous
+   les cadres pour l'instant. */
+const DEFAULT_TUBE_R = { top:0.014, down:0.021, seat:0.014, head:0.017, chainstay:0.011, seatstay:0.009, fork:0.015 };
 
-/* Builds a frame group from real bike geometry (wheelbase, BB drop, head/seat
-   angles, tube diameters) driven by the chosen frame's preset. Returns the
-   group plus the anchor points so the drivetrain parts can attach correctly. */
+/* Construit le cadre (+ fourche) à partir des mesures réelles du cadre
+   sélectionné. Ne dessine QUE la structure du cadre — pas de potence,
+   cintre, selle ou tige de selle : ce sont des composants séparés,
+   pas encore ajoutés au configurateur. */
 function buildFrame(frameItem){
-  const preset = GEOMETRY_PRESETS[frameItem.geom];
-  const pts = computeGeometryPoints(preset, R_WHEEL);
+  const pts = computeGeometryPoints(frameItem, R_WHEEL);
+  const tubeR = frameItem.tubeR || DEFAULT_TUBE_R;
   const g = new THREE.Group();
   const accent = frameAccentMat(frameItem.swatch);
   const secondary = frameSecondaryMat(frameItem.swatch);
 
-  const mkTube = (p1, p2, r, material, flattenable) => {
-    const m = tube(p1, p2, r, material);
-    if (preset.flatten && flattenable) m.scale.set(1, 1, 1.7);
-    return m;
-  };
-
-  // main triangle — the frame's own paint colour
-  g.add(mkTube(pts.seatTop, pts.headTop, preset.tubeR.top, accent, true));       // top tube
-  g.add(mkTube(pts.bb, pts.headBottom, preset.tubeR.down, accent, true));        // down tube
-  g.add(mkTube(pts.bb, pts.seatTop, preset.tubeR.seat, accent, true));           // seat tube
-  g.add(mkTube(pts.headBottom, pts.headTop, preset.tubeR.head, accent, false));  // head tube
-  g.add(mkTube(pts.bb, pts.rearHub, preset.tubeR.chainstay, secondary, false));          // chainstay
-  g.add(mkTube(pts.seatStayAttach, pts.rearHub, preset.tubeR.seatstay, secondary, false));// seatstay
-  g.add(mkTube(pts.headBottom, pts.frontHub, preset.tubeR.fork, secondary, false));       // fork
-
-  // seatpost + saddle
-  g.add(tube(pts.seatTop, pts.saddle, 0.010, neutralMat));
-  const saddleMesh = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.03, 0.09), neutralMat);
-  saddleMesh.position.copy(pts.saddle).add(V(-0.05, 0.015, 0));
-  g.add(saddleMesh);
-
-  // stem + handlebar
-  g.add(tube(pts.headTop, pts.barCenter, 0.010, neutralMat));
-  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.009,0.34,8), neutralMat);
-  bar.rotation.z = Math.PI/2;
-  bar.position.copy(pts.barCenter);
-  g.add(bar);
+  g.add(tube(pts.seatTop, pts.headTop, tubeR.top, accent));        // top tube
+  g.add(tube(pts.bb, pts.headBottom, tubeR.down, accent));         // down tube
+  g.add(tube(pts.bb, pts.seatTop, tubeR.seat, accent));            // seat tube
+  g.add(tube(pts.headBottom, pts.headTop, tubeR.head, accent));    // head tube
+  g.add(tube(pts.bb, pts.rearHub, tubeR.chainstay, secondary));            // chainstay
+  g.add(tube(pts.seatStayAttach, pts.rearHub, tubeR.seatstay, secondary)); // seatstay
+  g.add(tube(pts.headBottom, pts.frontHub, tubeR.fork, secondary));        // fork
 
   return { group: g, points: pts };
 }
@@ -847,12 +834,19 @@ function replaceGroup(cat, newGroup){
   activeGroups[cat] = newGroup;
   bikeRig.add(newGroup);
 }
+function clearGroup(cat){
+  if (activeGroups[cat]){
+    bikeRig.remove(activeGroups[cat]);
+    activeGroups[cat].traverse(o => { if (o.isMesh){ o.geometry.dispose(); o.material.dispose(); } });
+    delete activeGroups[cat];
+  }
+}
 
 /* ============================================================
    BOUCLE PRINCIPALE
    ============================================================ */
 function update(){
-  const issues = computeIssues(selection);
+  const issues = framesetOnly ? [] : computeIssues(selection);
   const flagged = renderSummary(issues);
 
   const frameItem = findPart('frame', selection.frame);
@@ -860,23 +854,27 @@ function update(){
   replaceGroup('frame', built.group);
   currentPoints = built.points;
 
-  const wheelItem = findPart('wheels', selection.wheels);
-  replaceGroup('wheels', buildWheels(wheelItem, currentPoints));
+  if (framesetOnly){
+    ['wheels','rearDerailleur','frontDerailleur','cassette','crankset'].forEach(clearGroup);
+  } else {
+    const wheelItem = findPart('wheels', selection.wheels);
+    replaceGroup('wheels', buildWheels(wheelItem, currentPoints));
 
-  const rd = findPart('rearDerailleur', selection.rearDerailleur);
-  const fd = findPart('frontDerailleur', selection.frontDerailleur);
-  const cs = findPart('cassette', selection.cassette);
-  const ck = findPart('crankset', selection.crankset);
+    const rd = findPart('rearDerailleur', selection.rearDerailleur);
+    const fd = findPart('frontDerailleur', selection.frontDerailleur);
+    const cs = findPart('cassette', selection.cassette);
+    const ck = findPart('crankset', selection.crankset);
 
-  replaceGroup('rearDerailleur', buildRearDerailleur());
-  replaceGroup('frontDerailleur', buildFrontDerailleur(fd.id !== 'fd-none'));
-  replaceGroup('cassette', buildCassette());
-  replaceGroup('crankset', buildCrankset(ck.chainrings));
+    replaceGroup('rearDerailleur', buildRearDerailleur());
+    replaceGroup('frontDerailleur', buildFrontDerailleur(fd.id !== 'fd-none'));
+    replaceGroup('cassette', buildCassette());
+    replaceGroup('crankset', buildCrankset(ck.chainrings));
 
-  tintGroup(activeGroups.rearDerailleur, colorFor(rd.brand), flagged.has('rearDerailleur'));
-  tintGroup(activeGroups.frontDerailleur, colorFor(fd.brand), flagged.has('frontDerailleur'));
-  tintGroup(activeGroups.cassette, colorFor(cs.brand), flagged.has('cassette'));
-  tintGroup(activeGroups.crankset, colorFor(ck.brand), flagged.has('crankset'));
+    tintGroup(activeGroups.rearDerailleur, colorFor(rd.brand), flagged.has('rearDerailleur'));
+    tintGroup(activeGroups.frontDerailleur, colorFor(fd.brand), flagged.has('frontDerailleur'));
+    tintGroup(activeGroups.cassette, colorFor(cs.brand), flagged.has('cassette'));
+    tintGroup(activeGroups.crankset, colorFor(ck.brand), flagged.has('crankset'));
+  }
 }
 
 /* ============================================================

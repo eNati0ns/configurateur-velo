@@ -1,20 +1,32 @@
 {
   "cadres": [
     {
-      "id": "f-aero",
-      "collection": "Aéro",
-      "nom": "Atelier AeroRace SL",
-      "poids_g": 980,
-      "couleur": "#c1443a",
-      "geometrie": "aero"
-    },
-    {
-      "id": "f-climb",
-      "collection": "Grimpeur",
-      "nom": "Atelier Climb Ultra",
-      "poids_g": 780,
-      "couleur": "#d4a72c",
-      "geometrie": "climb"
+      "id": "f-sl9-52",
+      "collection": "",
+      "nom": "SL9",
+      "taille": "52",
+      "poids_g": 800,
+      "_poids_note": "placeholder — pas dans la fiche technique, à corriger",
+      "couleur": "#8a8f98",
+      "_couleur_note": "placeholder — pas dans la fiche technique, à corriger",
+
+      "reach_mm": 380,
+      "stack_mm": 527,
+      "top_tube_effectif_mm": 531,
+      "seat_tube_ct_mm": 456,
+      "head_angle_deg": 72.5,
+      "seat_angle_deg": 74,
+      "head_tube_mm": 119.8,
+      "chainstay_mm": 410,
+      "wheelbase_mm": 975,
+      "front_centre_mm": 577,
+      "standover_mm": 745,
+      "bb_drop_mm": 74,
+      "bb_height_mm": 266,
+      "fork_rake_mm": 47,
+      "trail_mm": 58,
+      "fork_length_a2c_mm": 369,
+      "seatpost_length_mm": 300
     }
   ],
 

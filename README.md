@@ -5,6 +5,12 @@ Tout le contenu du configurateur vient d'un seul fichier :
 
 C'est un fichier texte tout simple. Tu ne touches jamais à `index.html`.
 
+## Mode "Frameset only"
+
+Une case à cocher en haut du panneau permet de n'afficher que le cadre et
+la fourche, sans roues ni groupe — pratique pour travailler la géométrie
+d'un cadre sans distraction.
+
 ## Règle d'or
 
 Pour ajouter une pièce : **copie un bloc existant qui ressemble à ce que tu veux, colle-le juste après (avec une virgule entre les deux), et change les valeurs.**
@@ -29,8 +35,33 @@ Exemple — ajouter une 3e cassette :
 - **`vitesses`** : nombre de vitesses (10, 11, 12...). Doit être identique entre la cassette et le dérailleur arrière pour que ce soit compatible.
 - **`plateaux`** (manivelles uniquement) : 1 ou 2 (nombre de plateaux à l'avant).
 - **`couleur`** (cadres et roues uniquement) : un code couleur du type `"#c1443a"`. Tu peux en trouver facilement en cherchant "color picker" sur Google.
-- **`geometrie`** (cadres uniquement) : doit être une valeur parmi `"aero"`, `"climb"`, `"endurance"`, `"classic"` — ce sont les 4 formes de cadre que le programme sait dessiner. Tu peux créer autant de cadres que tu veux en réutilisant ces 4 formes avec ta propre couleur/poids/nom. Pour une 5e forme totalement différente, il faudra qu'on la code ensemble.
 - **`profil_mm`** (roues uniquement) : hauteur de jante en mm (ex: 24 = roue légère, 50 = roue aéro profilée). Change l'apparence de la roue.
+
+### Cadres — toutes les mesures viennent de la fiche géométrique du fabricant, **en millimètres** (le programme convertit tout seul en mètres)
+
+| Champ JSON | Mesure (voir schéma du fabricant) |
+|---|---|
+| `reach_mm` | Reach |
+| `stack_mm` | Stack |
+| `top_tube_effectif_mm` | Top Tube (effective) — gardé pour référence, pas utilisé dans le dessin |
+| `seat_tube_ct_mm` | Seat Tube C-T |
+| `head_angle_deg` | Head Angle (en degrés, pas en mm) |
+| `seat_angle_deg` | Seat Angle (en degrés) |
+| `head_tube_mm` | Head Tube |
+| `chainstay_mm` | Chainstay |
+| `wheelbase_mm` | Wheelbase — gardé pour référence/contrôle |
+| `front_centre_mm` | Front Centre |
+| `standover_mm` | Standover — gardé pour référence, pas utilisé dans le dessin |
+| `bb_drop_mm` | BB Drop |
+| `bb_height_mm` | BB Height — gardé pour référence |
+| `fork_rake_mm` | Fork Rake / Offset — gardé pour référence |
+| `trail_mm` | Trail — gardé pour référence |
+| `fork_length_a2c_mm` | Fork Length (A2C) — gardé pour référence |
+| `seatpost_length_mm` | Seatpost Length — gardé pour référence, la tige de selle n'est pas dessinée (ce n'est pas le cadre) |
+
+Toutes ces mesures sont **obligatoires** pour qu'un cadre se dessine correctement — copie le bloc `f-sl9-52` en entier et remplace chaque valeur par celles de la fiche technique de ton nouveau cadre. Le rendu 3D ne dessine que le cadre et la fourche (pas de potence, cintre, selle ou tige de selle : ce sont des composants séparés qu'on ajoutera plus tard).
+
+Pas de champ `geometrie` à choisir : la forme du cadre est maintenant calculée directement à partir de ces mesures, ce n'est plus une des 4 formes toutes faites d'avant.
 
 ## Ne pas casser le fichier
 
