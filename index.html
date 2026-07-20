@@ -172,6 +172,34 @@
   .option.invalid{ border-color: var(--warn); background: var(--warn-bg); }
   .option.invalid .weight{ color: var(--warn); }
 
+  /* ---------- Frame picker (model search + size) ---------- */
+  .frame-picker{ display:flex; flex-direction:column; gap:12px; }
+  .field-label{
+    display:block; font-family:'JetBrains Mono',monospace; font-size:10px;
+    color: var(--text-faint); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:6px;
+  }
+  .frame-picker input[type="text"], .frame-picker select{
+    width:100%; background: var(--bg-2); border:1px solid var(--border-soft);
+    color: var(--text); font-family:'Space Grotesk', sans-serif; font-size:13px;
+    padding:9px 10px; border-radius: var(--radius); appearance:none;
+  }
+  .frame-picker select{
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+    background-position: calc(100% - 16px) center, calc(100% - 11px) center;
+    background-size: 5px 5px, 5px 5px; background-repeat:no-repeat;
+    cursor:pointer;
+  }
+  .frame-picker input[type="text"]:focus, .frame-picker select:focus{
+    outline:none; border-color: var(--accent);
+  }
+  .frame-picker input[type="text"]::placeholder{ color: var(--text-faint); }
+  .frame-picker select:disabled{ opacity:0.4; cursor:default; }
+  .frame-meta{
+    display:flex; align-items:center; gap:8px; margin-top:2px;
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; color: var(--text-faint);
+  }
+  .frame-meta .dot{ flex-shrink:0; }
+
   #reset-btn{
     width:100%; margin-top:6px; padding:10px;
     background:transparent; border:1px dashed var(--border);
@@ -244,6 +272,35 @@
   .geom-value{ font-family:'JetBrains Mono',monospace; text-align:right; color: var(--text); }
   .geom-unit{ color: var(--text-faint); font-size:10px; width:26px; }
 
+  /* ---------- Cockpit : éditeur de potence ---------- */
+  .stem-editor{ display:flex; flex-direction:column; gap:7px; margin-top:2px; }
+  .stem-row{ display:flex; align-items:center; gap:8px; }
+  .stem-row label{ flex:1; font-size:12px; color: var(--text-dim); }
+  .stem-row input{
+    width:64px; background: var(--bg-2); border:1px solid var(--border-soft); color: var(--text);
+    font-family:'JetBrains Mono',monospace; font-size:12px; text-align:right;
+    border-radius: var(--radius); padding:5px 7px;
+  }
+  .stem-row input:focus{ outline:none; border-color: var(--accent); }
+  .stem-row input.changed{ border-color:#e8912f; color:#e8912f; }
+  .stem-row .stem-unit{ width:20px; font-size:10px; color: var(--text-faint); }
+  #stem-apply{
+    margin-top:4px; padding:9px 12px; border-radius: var(--radius); cursor:pointer;
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase;
+    background:transparent; border:1px solid var(--border); color: var(--text-faint);
+  }
+  #stem-apply.pending{ background:#e8912f; border-color:#e8912f; color:#141414; font-weight:600; }
+  /* en-tête de groupe dans le tableau (Entrées / Valeurs dérivées) */
+  tr.geom-group td{
+    padding-top:9px; padding-bottom:4px;
+    font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.08em;
+    text-transform:uppercase; color: var(--text-faint);
+  }
+  /* lignes dérivées : italique gris, lisibles mais visiblement distinctes */
+  tr.geom-derived .geom-label,
+  tr.geom-derived .geom-value,
+  tr.geom-derived .geom-unit{ font-style:italic; color: var(--text-dim); }
+
   /* ---------- Responsive ---------- */
   @media (max-width: 880px){
     #app{
@@ -262,21 +319,10 @@
 
   <aside id="sidebar">
     <div class="brand-header">
-      <div class="eyebrow">Atelier // Cadre &amp; transmission</div>
+      <div class="eyebrow">Atelier // Cadre &amp; cockpit</div>
       <h1>Configurateur de vélo</h1>
-      <p>Choisis un cadre, des roues, puis les composants du groupe transmission. Le vélo et le résumé en bas se mettent à jour en direct — les incompatibilités s'affichent en rouge.</p>
+      <p>Choisis un cadre et sa taille, puis règle la potence. Le vélo et le résumé en bas se mettent à jour en direct.</p>
     </div>
-
-    <div class="legend">
-      <span><i class="dot" style="background:var(--shimano)"></i>Shimano</span>
-      <span><i class="dot" style="background:var(--sram)"></i>SRAM</span>
-      <span><i class="dot" style="background:var(--campy)"></i>Campagnolo</span>
-    </div>
-
-    <label class="frameset-toggle">
-      <input type="checkbox" id="frameset-only-checkbox" checked>
-      <span>Frameset only <i>— cadre &amp; fourche seuls, sans roues ni groupe</i></span>
-    </label>
 
     <div id="categories"></div>
 
@@ -295,7 +341,7 @@
     </div>
     <div class="hud hud-tr mono">
       <div>SCALE 1:1</div>
-      <div class="sub">GROUPE::TRANSMISSION</div>
+      <div class="sub">CADRE::COCKPIT</div>
     </div>
     <div class="orbit-hint">◐ CLIC + GLISSER = ORBITE · MOLETTE = ZOOM</div>
     <div id="boot-error" class="boot-error">
@@ -318,7 +364,6 @@
       <div class="weight-total mono">Poids total configuré &nbsp; <b id="total-weight">—</b></div>
     </div>
     <div class="rows" id="rows"></div>
-    <div id="issues"></div>
     <div id="geom-panel"></div>
   </div>
 
@@ -350,23 +395,8 @@ function mapDatabase(raw){
     frame: (raw.cadres || []).map(x => ({
       id: x.id, brand: x.collection || '', model: x.nom, weight: x.poids_g, swatch: x.couleur,
       taille: x.taille,
-      _raw: x, // valeurs brutes mm/deg, conservées pour le tableau éditable
+      _raw: x, // valeurs brutes mm/deg
       ...frameFieldsFromRaw(x),
-    })),
-    wheels: (raw.roues || []).map(x => ({
-      id: x.id, brand: x.marque, model: x.modele, weight: x.poids_g, swatch: x.couleur, profile: x.profil_mm
-    })),
-    rearDerailleur: (raw.derailleurs_arriere || []).map(x => ({
-      id: x.id, brand: x.marque, model: x.modele, speed: x.vitesses, weight: x.poids_g
-    })),
-    frontDerailleur: (raw.derailleurs_avant || []).map(x => ({
-      id: x.id, brand: x.marque, model: x.modele, speed: x.vitesses, weight: x.poids_g
-    })),
-    cassette: (raw.cassettes || []).map(x => ({
-      id: x.id, brand: x.marque, model: x.modele, speed: x.vitesses, weight: x.poids_g
-    })),
-    crankset: (raw.manivelles || []).map(x => ({
-      id: x.id, brand: x.marque, model: x.modele, chainrings: x.plateaux, weight: x.poids_g
     })),
   };
 }
@@ -398,68 +428,85 @@ async function loadDatabase(){
 }
 
 const CATEGORY_META = {
-  frame:           { label:'Cadre',               short:'CADRE',      n:'00', desc:'Géométrie exacte issue de la fiche technique du fabricant (reach, stack, angles, empattement...).' },
-  wheels:          { label:'Roues',                short:'ROUES',      n:'01' },
-  rearDerailleur:  { label:'Dérailleur arrière',   short:'DÉR. ARR.',  n:'02' },
-  frontDerailleur: { label:'Dérailleur avant',     short:'DÉR. AVT.',  n:'03' },
-  cassette:        { label:'Cassette',             short:'CASSETTE',   n:'04' },
-  crankset:        { label:'Manivelles',           short:'MANIVELLES', n:'05' },
+  frame: { label:'Cadre', short:'CADRE', n:'00', desc:'Géométrie exacte issue de la fiche technique du fabricant (reach, stack, angles, empattement...).' },
 };
 
 /* ============================================================
    TABLEAU DE GÉOMÉTRIE (lecture seule)
-   Affiche la fiche technique complète de la taille de cadre sélectionnée.
+   Deux groupes : d'abord les mesures qui ALIMENTENT le modèle 3D
+   (le noyau consommé par computeGeometryPoints), puis les valeurs
+   DÉRIVÉES / de référence (affichées en italique gris).
    ============================================================ */
-const GEOM_FIELDS = [
+const GEOM_FIELDS_INPUT = [
   { key:'reach_mm',             label:'Reach',                 unit:'mm' },
   { key:'stack_mm',             label:'Stack',                 unit:'mm' },
-  { key:'top_tube_effectif_mm', label:'Top Tube (effective)',  unit:'mm' },
-  { key:'seat_tube_ct_mm',      label:'Seat Tube C-T',         unit:'mm' },
   { key:'head_angle_deg',       label:'Head Angle',            unit:'°'  },
   { key:'seat_angle_deg',       label:'Seat Angle',            unit:'°'  },
   { key:'head_tube_mm',         label:'Head Tube',             unit:'mm' },
   { key:'chainstay_mm',         label:'Chainstay',             unit:'mm' },
+  { key:'bb_drop_mm',           label:'BB Drop',               unit:'mm' },
+  { key:'fork_rake_mm',         label:'Fork Rake / Offset',    unit:'mm' },
+  { key:'fork_length_a2c_mm',   label:'Fork Length (A2C)',     unit:'mm' },
+];
+const GEOM_FIELDS_DERIVED = [
+  { key:'top_tube_effectif_mm', label:'Top Tube (effective)',  unit:'mm' },
+  { key:'seat_tube_ct_mm',      label:'Seat Tube C-T',         unit:'mm' },
   { key:'wheelbase_mm',         label:'Wheelbase',             unit:'mm' },
   { key:'front_centre_mm',      label:'Front Centre',          unit:'mm' },
   { key:'standover_mm',         label:'Standover',             unit:'mm' },
-  { key:'bb_drop_mm',           label:'BB Drop',               unit:'mm' },
   { key:'bb_height_mm',         label:'BB Height',             unit:'mm' },
-  { key:'fork_rake_mm',         label:'Fork Rake / Offset',    unit:'mm' },
   { key:'trail_mm',             label:'Trail',                 unit:'mm' },
-  { key:'fork_length_a2c_mm',   label:'Fork Length (A2C)',     unit:'mm' },
   { key:'seatpost_length_mm',   label:'Seatpost Length',       unit:'mm' },
 ];
 
-/* Calcule les points d'ancrage du cadre à partir de mesures réelles
-   (fiche géométrique constructeur, en mètres après conversion).
-   BB = origine locale. Rayon de roue = R_WHEEL (indépendant du cadre,
-   défini par la roue sélectionnée séparément). Chainstay et Front Centre
-   sont des distances en ligne droite BB→moyeu (pas des projections
-   horizontales), d'où le sqrt(d² - bbDrop²) pour trouver le décalage
-   horizontal. Validé numériquement : chainstay_h + frontCentre_h ≈ wheelbase. */
+/* Reconstruit le cadre entièrement à partir du NOYAU de mesures toujours
+   présent sur toutes les fiches constructeur (reach, stack, angles de
+   direction/selle, longueur du tube de direction, chainstay, bb_drop, rake).
+   Les champs parfois absents (front_centre, seat_tube_ct, wheelbase, trail…)
+   ne sont PAS consommés ici : ils sont dérivés, ce qui garantit un rendu
+   correct même pour un cadre à fiche incomplète.
+   BB = origine locale. Rayon de roue = R_WHEEL (défini par la roue). */
 function computeGeometryPoints(f, wheelR){
+  // --- BB par rapport au moyeu arrière ---
+  // chainstay = distance en ligne droite BB→moyeu ; bbDrop = chute verticale.
   const bbX = Math.sqrt(Math.max(f.chainstay*f.chainstay - f.bbDrop*f.bbDrop, 0.0001));
   const bb = new THREE.Vector3(bbX, wheelR - f.bbDrop, 0);
-
   const rearHub = new THREE.Vector3(0, wheelR, 0);
 
-  const frontOffsetX = Math.sqrt(Math.max(f.frontCentre*f.frontCentre - f.bbDrop*f.bbDrop, 0.0001));
-  const frontHub = new THREE.Vector3(bb.x + frontOffsetX, wheelR, 0);
-
+  // --- Haut du tube de direction : reach & stack posés directement ---
+  // Aucun calcul : c'est la définition même du reach (horizontal) et du
+  // stack (vertical) depuis le BB. Toujours exact.
   const headTop = new THREE.Vector3(bb.x + f.reach, bb.y + f.stack, 0);
 
+  // --- Bas du tube de direction ---
   const headAngleRad = f.headAngleDeg * Math.PI/180;
-  const hdx = f.headTubeLen * Math.cos(headAngleRad);
-  const hdy = f.headTubeLen * Math.sin(headAngleRad);
-  const headBottom = new THREE.Vector3(headTop.x + hdx, headTop.y - hdy, 0);
+  const axisDown = new THREE.Vector3(Math.cos(headAngleRad), -Math.sin(headAngleRad), 0); // vers le bas-avant
+  const headBottom = new THREE.Vector3(
+    headTop.x + f.headTubeLen * axisDown.x,
+    headTop.y + f.headTubeLen * axisDown.y, 0);
 
+  // --- Moyeu avant : reconstruit depuis la géométrie de fourche ---
+  // A2C = longueur droite couronne→axe ; rake = déport perpendiculaire à
+  // l'axe de direction. Défaut route (373 mm) si A2C absent (ex. Cervélo S5) :
+  // la position avant y est quasi insensible. Le moyeu est calé à la hauteur
+  // de roue (sol plat, deux roues identiques) — seul son X vient de la fourche.
+  const forkA2C = (f.forkLengthA2C && f.forkLengthA2C > 0) ? f.forkLengthA2C : 0.373;
+  const rake = f.forkRake || 0;
+  const forkPerp = new THREE.Vector3(Math.sin(headAngleRad), Math.cos(headAngleRad), 0); // perpendiculaire, vers l'avant
+  const along = Math.sqrt(Math.max(forkA2C*forkA2C - rake*rake, 0.0001));
+  const frontHub = new THREE.Vector3(
+    headBottom.x + along*axisDown.x + rake*forkPerp.x,
+    wheelR, 0);
+
+  // --- Tube de selle : de BB le long du seat_angle jusqu'au tube supérieur ---
+  // On n'utilise PAS seat_tube_ct (souvent absent). Le sommet du tube de selle
+  // est l'intersection de l'axe de selle avec la ligne du tube supérieur
+  // effectif (à hauteur = stack au-dessus du BB) ; d'où un tube supérieur
+  // effectif horizontal, identité seat_angle × stack.
   const seatAngleRad = f.seatAngleDeg * Math.PI/180;
-  const seatTop = new THREE.Vector3(bb.x - f.seatTubeCT*Math.cos(seatAngleRad), bb.y + f.seatTubeCT*Math.sin(seatAngleRad), 0);
+  const seatTop = new THREE.Vector3(bb.x - f.stack/Math.tan(seatAngleRad), headTop.y, 0);
 
-  // point d'attache des haubans sur le tube de selle — à défaut de mesure
-  // précise, on les attache en haut (style traditionnel) par défaut
-  const seatStayFrac = f.seatstayDropFrac ?? 1.0;
-  const seatStayAttach = new THREE.Vector3().lerpVectors(bb, seatTop, seatStayFrac);
+  const seatStayAttach = seatTop.clone(); // haubans attachés en haut du tube de selle
 
   const centerX = frontHub.x / 2;
   [rearHub, frontHub, bb, headTop, headBottom, seatTop, seatStayAttach].forEach(p => { p.x -= centerX; });
@@ -467,79 +514,34 @@ function computeGeometryPoints(f, wheelR){
   return { rearHub, frontHub, bb, headTop, headBottom, seatTop, seatStayAttach, wheelR };
 }
 
-const BRAND_COLOR = { 'Shimano':'#3fa9f5', 'SRAM':'#e0942c', 'Campagnolo':'#b06bd1', '—':'#6b7280' };
-const BRAND_COLOR_HEX = { 'Shimano':0x3fa9f5, 'SRAM':0xe0942c, 'Campagnolo':0xb06bd1, '—':0x6b7280 };
-
-/* ============================================================
-   ⚙️ RÈGLES DE COMPATIBILITÉ — bloc isolé, remplaçable facilement
-   ============================================================ */
-function computeIssues(sel){
-  const rd = findPart('rearDerailleur', sel.rearDerailleur);
-  const fd = findPart('frontDerailleur', sel.frontDerailleur);
-  const cs = findPart('cassette', sel.cassette);
-  const ck = findPart('crankset', sel.crankset);
-  const issues = [];
-
-  // Règle 1 — mélange de marques entre dérailleurs avant/arrière
-  if (fd.id !== 'fd-none' && fd.brand !== rd.brand) {
-    issues.push({
-      parts: ['rearDerailleur','frontDerailleur'],
-      message: `Mélange de marques : dérailleur arrière ${rd.brand} incompatible avec dérailleur avant ${fd.brand} (tirage de câble différent).`
-    });
-  }
-
-  // Règle 2 — nombre de vitesses cassette vs dérailleur arrière
-  if (rd.speed !== cs.speed) {
-    issues.push({
-      parts: ['rearDerailleur','cassette'],
-      message: `Vitesses différentes : dérailleur arrière ${rd.speed}v ≠ cassette ${cs.speed}v.`
-    });
-  }
-
-  // Règle 3 — manivelles multi-plateaux sans dérailleur avant
-  if (ck.chainrings >= 2 && fd.id === 'fd-none') {
-    issues.push({
-      parts: ['crankset','frontDerailleur'],
-      message: `Manivelles ${ck.chainrings} plateaux : un dérailleur avant est nécessaire.`
-    });
-  }
-
-  // Règle 4 — dérailleur avant monté sur manivelles mono-plateau
-  if (ck.chainrings === 1 && fd.id !== 'fd-none') {
-    issues.push({
-      parts: ['crankset','frontDerailleur'],
-      message: `Dérailleur avant inutile avec des manivelles mono-plateau (1x).`
-    });
-  }
-
-  return issues;
-}
-/* ============================================================ */
-
 function findPart(cat, id){ return PARTS_DATA[cat].find(p => p.id === id); }
 
 let selection = {
-  frame:           'f-sl9-52',
-  wheels:          'w-alu',
-  rearDerailleur:  'shim-105',
-  frontDerailleur: 'shim-105-fd',
-  cassette:        'shim-105-cs',
-  crankset:        'shim-105-crk',
+  frame: 'f-sl9-52',
 };
 const DEFAULT_SELECTION = { ...selection };
 
 /* ============================================================
+   COCKPIT — potence paramétrable (composant unique éditable)
+   Valeurs standard route ; l'utilisateur les modifie dans le tableau puis
+   applique. stemDraft = tableau en cours ; stemApplied = valeurs en 3D.
+   ============================================================ */
+const STEM_STANDARD = { length_mm:100, angle_deg:8, steerer_mm:28.6, bar_clamp_mm:31.8 };
+const STEM_FIELDS = [
+  { key:'length_mm',    label:'Longueur',          unit:'mm' },
+  { key:'angle_deg',    label:'Angle',             unit:'°'  },
+  { key:'steerer_mm',   label:'⌀ Tube de fourche', unit:'mm' },
+  { key:'bar_clamp_mm', label:'⌀ Cintre',          unit:'mm' },
+];
+let stemDraft   = { ...STEM_STANDARD };
+let stemApplied = { ...STEM_STANDARD };
+
+/* ============================================================
    UI — panneau gauche
    ============================================================ */
-let framesetOnly = true;
-const FRAME_ONLY_CATS = ['frame'];
-
 const categoriesEl = document.getElementById('categories');
 
-function visibleCategories(){
-  const all = Object.keys(PARTS_DATA);
-  return framesetOnly ? all.filter(c => FRAME_ONLY_CATS.includes(c)) : all;
-}
+function visibleCategories(){ return ['frame']; }
 
 function renderPanel(){
   categoriesEl.innerHTML = '';
@@ -560,39 +562,148 @@ function renderPanel(){
       wrap.appendChild(desc);
     }
 
-    PARTS_DATA[cat].forEach(part => {
-      const btn = document.createElement('button');
-      btn.className = 'option';
-      btn.dataset.cat = cat;
-      btn.dataset.id = part.id;
-      const color = part.swatch || BRAND_COLOR[part.brand] || '#6b7280';
-      const modelLabel = cat === 'frame' ? `${part.model} — Taille ${part.taille}` : part.model;
-      btn.innerHTML = `
-        <span class="dot" style="background:${color}"></span>
-        <span class="label">
-          <span class="brand">${part.brand}</span>
-          <span class="model">${modelLabel}</span>
-        </span>
-        <span class="weight mono">${part.weight ? part.weight + 'g' : '—'}</span>
-      `;
-      btn.addEventListener('click', () => {
-        selection[cat] = part.id;
-        update();
-      });
-      wrap.appendChild(btn);
-    });
+    if (cat === 'frame') renderFramePicker(wrap);
 
     categoriesEl.appendChild(wrap);
   });
+
+  // Cockpit (potence)
+  renderCockpit();
+}
+
+/* ============================================================
+   COCKPIT — rendu du tableau éditable de la potence
+   ============================================================ */
+function renderCockpit(){
+  const std = STEM_STANDARD;
+  const wrap = document.createElement('div');
+  wrap.className = 'category';
+  wrap.innerHTML = `
+    <div class="category-head"><span class="name">Cockpit</span><span class="idx mono">01</span></div>
+    <div class="category-desc">Potence — standard route ${std.length_mm} mm · +${std.angle_deg}° · steerer ${std.steerer_mm} / cintre ${std.bar_clamp_mm} mm. Modifie une valeur puis applique.</div>`;
+  const editor = document.createElement('div');
+  editor.className = 'stem-editor';
+  editor.innerHTML = STEM_FIELDS.map(f => `
+    <div class="stem-row">
+      <label for="stem-${f.key}">${f.label}</label>
+      <input id="stem-${f.key}" type="number" step="0.1" value="${stemDraft[f.key]}" data-key="${f.key}">
+      <span class="stem-unit">${f.unit}</span>
+    </div>`).join('') + `<button id="stem-apply">Appliquer à la 3D</button>`;
+  wrap.appendChild(editor);
+  categoriesEl.appendChild(wrap);
+
+  editor.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const v = parseFloat(inp.value);
+      if (!isNaN(v)) stemDraft[inp.dataset.key] = v;
+      refreshStemEditorState();
+    });
+  });
+  editor.querySelector('#stem-apply').addEventListener('click', () => {
+    stemApplied = { ...stemDraft };
+    update();
+    refreshStemEditorState();
+  });
+  refreshStemEditorState();
+}
+
+function refreshStemEditorState(){
+  STEM_FIELDS.forEach(f => {
+    const inp = document.getElementById('stem-' + f.key);
+    if (inp) inp.classList.toggle('changed', Number(stemDraft[f.key]) !== Number(STEM_STANDARD[f.key]));
+  });
+  const btn = document.getElementById('stem-apply');
+  if (btn){
+    const pending = STEM_FIELDS.some(f => Number(stemDraft[f.key]) !== Number(stemApplied[f.key]));
+    btn.classList.toggle('pending', pending);
+    btn.textContent = pending ? 'Appliquer à la 3D' : 'Appliqué';
+  }
+}
+
+/* ============================================================
+   SÉLECTEUR DE CADRE — recherche de modèle + taille
+   Groupe les entrées de PARTS_DATA.frame par nom de modèle (plusieurs
+   tailles par modèle). Pensé pour grossir : la recherche reste utilisable
+   même avec beaucoup de cadres au catalogue.
+   ============================================================ */
+let frameModelInputEl = null, frameSizeSelectEl = null, frameMetaEl = null;
+
+function frameModelLabel(part){
+  return part.brand && part.brand !== '—' ? `${part.brand} ${part.model}` : part.model;
+}
+
+function frameModelGroups(){
+  const groups = {};
+  PARTS_DATA.frame.forEach(p => {
+    const label = frameModelLabel(p);
+    (groups[label] = groups[label] || []).push(p);
+  });
+  return groups;
+}
+
+function populateFrameSizes(modelLabel, preferId){
+  const groups = frameModelGroups();
+  const list = groups[modelLabel] || [];
+  frameSizeSelectEl.innerHTML = list.map(p => `<option value="${p.id}">${p.taille}</option>`).join('');
+  frameSizeSelectEl.disabled = list.length === 0;
+  const target = list.find(p => p.id === preferId) || list[0];
+  if (target) frameSizeSelectEl.value = target.id;
+  return target;
+}
+
+function syncFramePickerUI(){
+  if (!frameModelInputEl) return;
+  const part = findPart('frame', selection.frame);
+  frameModelInputEl.value = frameModelLabel(part);
+  populateFrameSizes(frameModelLabel(part), part.id);
+  // pastille = couleur de rendu du cadre (blanc, fixe pour tous les cadres)
+  frameMetaEl.innerHTML = `<span class="dot" style="background:#f2f2f2; border:1px solid var(--border)"></span><span>${part.weight ? part.weight + ' g' : '—'}</span>`;
+}
+
+function renderFramePicker(wrap){
+  const groups = frameModelGroups();
+  const modelLabels = Object.keys(groups).sort();
+  const current = findPart('frame', selection.frame);
+
+  const picker = document.createElement('div');
+  picker.className = 'frame-picker';
+  picker.innerHTML = `
+    <div>
+      <label class="field-label" for="frame-model-input">Modèle</label>
+      <input type="text" id="frame-model-input" list="frame-model-list" placeholder="Rechercher un cadre…" autocomplete="off" value="${frameModelLabel(current)}">
+      <datalist id="frame-model-list">${modelLabels.map(n => `<option value="${n}">`).join('')}</datalist>
+    </div>
+    <div>
+      <label class="field-label" for="frame-size-select">Taille</label>
+      <select id="frame-size-select"></select>
+    </div>
+    <div class="frame-meta" id="frame-meta"></div>
+  `;
+  wrap.appendChild(picker);
+
+  frameModelInputEl = picker.querySelector('#frame-model-input');
+  frameSizeSelectEl = picker.querySelector('#frame-size-select');
+  frameMetaEl = picker.querySelector('#frame-meta');
+
+  frameModelInputEl.addEventListener('input', () => {
+    const name = frameModelInputEl.value.trim();
+    if (!groups[name]) return; // texte partiel non reconnu, on attend une correspondance exacte (choisie dans la liste)
+    const target = populateFrameSizes(name);
+    if (target){ selection.frame = target.id; update(); }
+  });
+
+  frameSizeSelectEl.addEventListener('change', () => {
+    selection.frame = frameSizeSelectEl.value;
+    update();
+  });
+
+  syncFramePickerUI();
 }
 
 document.getElementById('reset-btn').addEventListener('click', () => {
   selection = { ...DEFAULT_SELECTION };
-  update();
-});
-
-document.getElementById('frameset-only-checkbox').addEventListener('change', (e) => {
-  framesetOnly = e.target.checked;
+  stemDraft = { ...STEM_STANDARD };
+  stemApplied = { ...STEM_STANDARD };
   renderPanel();
   update();
 });
@@ -601,59 +712,36 @@ document.getElementById('frameset-only-checkbox').addEventListener('change', (e)
    UI — barre résumé
    ============================================================ */
 const rowsEl = document.getElementById('rows');
-const issuesEl = document.getElementById('issues');
 const statusEl = document.getElementById('status');
 const totalWeightEl = document.getElementById('total-weight');
 
-function renderSummary(issues){
-  const flagged = new Set();
-  issues.forEach(iss => iss.parts.forEach(p => flagged.add(p)));
-
-  let total = 0;
+function renderSummary(){
   rowsEl.innerHTML = '';
-  visibleCategories().forEach(cat => {
-    const part = findPart(cat, selection[cat]);
-    total += part.weight || 0;
-    const isWarn = flagged.has(cat);
-    const row = document.createElement('div');
-    row.className = 'row' + (isWarn ? ' warn' : '');
-    row.innerHTML = `
-      <div style="flex:1; min-width:0;">
-        <span class="rlabel">${CATEGORY_META[cat].short}</span>
-        <span class="rvalue">${part.brand !== '—' ? part.brand + ' ' : ''}${part.model}${cat === 'frame' ? ' · Taille ' + part.taille : ''}</span>
-      </div>
-      <span class="rweight mono">${part.weight ? part.weight + 'g' : '—'}</span>
-    `;
-    rowsEl.appendChild(row);
-  });
 
-  totalWeightEl.textContent = total.toLocaleString('fr-CH') + ' g';
+  const frame = findPart('frame', selection.frame);
+  const frameRow = document.createElement('div');
+  frameRow.className = 'row';
+  frameRow.innerHTML = `
+    <div style="flex:1; min-width:0;">
+      <span class="rlabel">${CATEGORY_META.frame.short}</span>
+      <span class="rvalue">${frame.brand ? frame.brand + ' ' : ''}${frame.model} · Taille ${frame.taille}</span>
+    </div>
+    <span class="rweight mono">${frame.weight ? frame.weight + 'g' : '—'}</span>`;
+  rowsEl.appendChild(frameRow);
 
-  if (issues.length === 0){
-    statusEl.className = 'status ok';
-    statusEl.innerHTML = `<span class="pip"></span><span class="txt">Configuration compatible</span>`;
-  } else {
-    statusEl.className = 'status warn';
-    statusEl.innerHTML = `<span class="pip"></span><span class="txt">${issues.length} incompatibilité${issues.length>1?'s':''} détectée${issues.length>1?'s':''}</span>`;
-  }
+  const stemRow = document.createElement('div');
+  stemRow.className = 'row';
+  stemRow.innerHTML = `
+    <div style="flex:1; min-width:0;">
+      <span class="rlabel">POTENCE</span>
+      <span class="rvalue">${stemApplied.length_mm} mm · ${stemApplied.angle_deg >= 0 ? '+' : ''}${stemApplied.angle_deg}°</span>
+    </div>
+    <span class="rweight mono">—</span>`;
+  rowsEl.appendChild(stemRow);
 
-  issuesEl.innerHTML = '';
-  issues.forEach(iss => {
-    const div = document.createElement('div');
-    div.className = 'issue';
-    div.textContent = iss.message;
-    issuesEl.appendChild(div);
-  });
-
-  // état des boutons du panneau
-  document.querySelectorAll('.option').forEach(btn => {
-    const cat = btn.dataset.cat, id = btn.dataset.id;
-    const isSelected = selection[cat] === id;
-    btn.classList.toggle('selected', isSelected);
-    btn.classList.toggle('invalid', isSelected && flagged.has(cat));
-  });
-
-  return flagged;
+  totalWeightEl.textContent = (frame.weight || 0).toLocaleString('fr-CH') + ' g';
+  statusEl.className = 'status ok';
+  statusEl.innerHTML = `<span class="pip"></span><span class="txt">Cadre &amp; cockpit</span>`;
 }
 
 /* ============================================================
@@ -713,173 +801,117 @@ function tube(p1, p2, r, material, segments=8){
 const V = (x,y,z=0) => new THREE.Vector3(x,y,z);
 
 /* ---------- geometry ---------- */
-const R_WHEEL = 0.335;
-let currentPoints = null; // anchor points of the currently built frame, consumed by drivetrain parts
+const R_WHEEL = 0.335;         // rayon de roue de référence (positionne le BB / les moyeux)
+let currentPoints = null;      // points d'ancrage du cadre courant, consommés par la potence
 
-const frameMat = mat(0x39424f, { metalness:0.7, roughness:0.3 });
-const neutralMat = mat(0x555f6e, { metalness:0.6, roughness:0.4 });
-const tireMat = mat(0x14161b, { metalness:0.1, roughness:0.9 });
+/* Couleurs fixes, identiques pour tous les cadres : cadre blanc, fourche
+   gris prononcé. On ignore volontairement le champ couleur des données. */
+const FRAME_COLOR = 0xf2f2f2;   // blanc (le blanc pur masquerait l'ombrage)
+const FORK_COLOR  = 0x4a4a4a;   // gris foncé
+const frameTubeMat = mat(FRAME_COLOR, { metalness:0.25, roughness:0.45 });
+const forkTubeMat  = mat(FORK_COLOR,  { metalness:0.45, roughness:0.40 });
 
-function frameAccentMat(hex){
-  const c = new THREE.Color(hex);
-  const em = c.clone().multiplyScalar(0.18);
-  return new THREE.MeshStandardMaterial({ color:c, metalness:0.35, roughness:0.3, emissive:em });
+/* Rayons de tube (mètres), calés sur des diamètres réels de vélo route à
+   l'échelle de la roue 700C, identiques pour TOUS les cadres. Hiérarchie :
+   tube de direction & diagonal les plus épais, top/seat égaux et moyens,
+   fourche + triangle arrière fins et gradés (bases > fourche > haubans).
+     head 42 · down 38 · top/seat 30 · seatpost 27 · chainstay 22 · fork 20 · seatstay 15 (mm ⌀) */
+const DEFAULT_TUBE_R = { top:0.015, down:0.019, seat:0.015, head:0.021, chainstay:0.011, seatstay:0.0075, fork:0.010, seatpost:0.0135 };
+
+/* Demi-largeurs (en Z, de part et d'autre du plan central du vélo) des
+   points où bases/haubans/fourche s'écartent pour enjamber la roue. Le plan
+   de la roue est Z=0 ; un pneu de 32 mm max s'étend à ±16 mm, largement à
+   l'intérieur des pattes. Valeurs proches des standards route (moyeu arrière
+   ~130 mm, avant ~100 mm) pour que les vraies roues s'insèrent ensuite. */
+const HUB = {
+  bbHalf: 0.030,        // écart des bases au niveau du boîtier de pédalier
+  rearDropoutHalf: 0.065, // patte arrière (~130 mm entre pattes)
+  seatstayTopHalf: 0.014, // haubans quasi joints en haut du tube de selle
+  frontDropoutHalf: 0.050, // patte avant (~100 mm)
+  forkCrownHalf: 0.024,   // fourreaux à la couronne
+};
+
+/* Ajoute une PAIRE de tubes symétriques (gauche/droite) : de a (décalé de
+   ±zA en Z) vers b (décalé de ±zB). Sert aux bases, haubans et fourche —
+   deux fourreaux droits qui convergent vers les pattes de roue. */
+function addTubePair(g, a, b, zA, zB, r, material){
+  g.add(tube(V(a.x, a.y, a.z + zA), V(b.x, b.y, b.z + zB), r, material));
+  g.add(tube(V(a.x, a.y, a.z - zA), V(b.x, b.y, b.z - zB), r, material));
 }
-function frameSecondaryMat(hex){
-  const c = new THREE.Color(hex).lerp(new THREE.Color(0x2a2f38), 0.62);
-  return new THREE.MeshStandardMaterial({ color:c, metalness:0.6, roughness:0.4 });
-}
-/* Épaisseurs de tubes par défaut — pas de donnée constructeur pour ça,
-   ce sont des proportions visuelles raisonnables, identiques pour tous
-   les cadres pour l'instant. */
-const DEFAULT_TUBE_R = { top:0.014, down:0.021, seat:0.014, head:0.017, chainstay:0.011, seatstay:0.009, fork:0.015 };
 
-/* Construit le cadre (+ fourche) à partir des mesures réelles du cadre
-   sélectionné. Ne dessine QUE la structure du cadre — pas de potence,
-   cintre, selle ou tige de selle : ce sont des composants séparés,
-   pas encore ajoutés au configurateur. */
+/* Construit le cadre (+ fourche) à partir de la géométrie reconstruite.
+   Triangle principal en tube unique (plan central) ; bases, haubans et
+   fourche en paires qui enjambent la roue. Triangle en blanc, fourche en
+   gris prononcé. Ne dessine pas potence/cintre/selle (composants séparés). */
 function buildFrame(frameItem){
   const pts = computeGeometryPoints(frameItem, R_WHEEL);
-  const tubeR = frameItem.tubeR || DEFAULT_TUBE_R;
+  const r = DEFAULT_TUBE_R;
   const g = new THREE.Group();
-  const accent = frameAccentMat(frameItem.swatch);
-  const secondary = frameSecondaryMat(frameItem.swatch);
 
-  g.add(tube(pts.seatTop, pts.headTop, tubeR.top, accent));        // top tube
-  g.add(tube(pts.bb, pts.headBottom, tubeR.down, accent));         // down tube
-  g.add(tube(pts.bb, pts.seatTop, tubeR.seat, accent));            // seat tube
-  g.add(tube(pts.headBottom, pts.headTop, tubeR.head, accent));    // head tube
-  g.add(tube(pts.bb, pts.rearHub, tubeR.chainstay, secondary));            // chainstay
-  g.add(tube(pts.seatStayAttach, pts.rearHub, tubeR.seatstay, secondary)); // seatstay
-  g.add(tube(pts.headBottom, pts.frontHub, tubeR.fork, secondary));        // fork
+  // triangle principal — tubes uniques dans le plan central
+  g.add(tube(pts.seatTop, pts.headTop, r.top, frameTubeMat));        // tube supérieur
+  g.add(tube(pts.bb, pts.headBottom, r.down, frameTubeMat));         // tube diagonal
+  g.add(tube(pts.bb, pts.seatTop, r.seat, frameTubeMat));            // tube de selle
+  g.add(tube(pts.headBottom, pts.headTop, r.head, frameTubeMat));    // tube de direction
+
+  // boîtier de pédalier BSA (route) : coquille filetée 68 mm de large,
+  // ⌀ ~40 mm, axe aligné sur l'axe de pédalier (Z). Remplit la jonction
+  // tube de selle / diagonal / bases.
+  const bbShell = new THREE.Mesh(new THREE.CylinderGeometry(0.0205, 0.0205, 0.068, 20), frameTubeMat);
+  bbShell.rotation.x = Math.PI/2;
+  bbShell.position.set(pts.bb.x, pts.bb.y, 0);
+  g.add(bbShell);
+
+  // triangle arrière — paires qui enjambent la roue
+  addTubePair(g, pts.bb, pts.rearHub, HUB.bbHalf, HUB.rearDropoutHalf, r.chainstay, frameTubeMat);        // bases
+  addTubePair(g, pts.seatStayAttach, pts.rearHub, HUB.seatstayTopHalf, HUB.rearDropoutHalf, r.seatstay, frameTubeMat); // haubans
+
+  // fourche — paire de fourreaux (gris)
+  addTubePair(g, pts.headBottom, pts.frontHub, HUB.forkCrownHalf, HUB.frontDropoutHalf, r.fork, forkTubeMat);
 
   return { group: g, points: pts };
 }
 
-/* Construit une paire de roues à partir de la géométrie du cadre actif.
-   Le profil (profile, en mm) épaissit visuellement la jante — plus une
-   roue est "aéro", plus son profil est haut, moins elle a de rayons. */
-function buildWheels(item, points){
+/* Potence (cockpit) — composant paramétrable. Se serre sur le pivot de
+   fourche (steerer) juste au-dessus du tube de direction, part vers l'avant
+   selon l'angle de potence, jusqu'au collier de cintre. On dessine le corps
+   + les deux colliers ; le cintre lui-même est un composant à venir. */
+const STEM_COLOR = 0x2e323b; // noir cockpit
+const stemMat = mat(STEM_COLOR, { metalness:0.5, roughness:0.4 });
+
+function buildStem(P, stem){
   const g = new THREE.Group();
-  const rimMat = mat(item.swatch || 0xc9c9c9, { metalness:0.6, roughness:0.32 });
-  const profile = item.profile || 24;
-  const rimTubeR = 0.013 + profile * 0.00055;
-  const spokeCount = profile >= 40 ? 5 : 10;
+  // axe du pivot de fourche = du bas vers le haut du tube de direction
+  const axisUp = new THREE.Vector3().subVectors(P.headTop, P.headBottom).normalize();
+  // perpendiculaire dans le plan, vers l'avant (potence à 0°)
+  const perpFwd = V(axisUp.y, -axisUp.x, 0);
+  const th = (stem.angle_deg || 0) * Math.PI/180; // + = vers le haut
+  const stemDir = V(
+    perpFwd.x*Math.cos(th) - perpFwd.y*Math.sin(th),
+    perpFwd.x*Math.sin(th) + perpFwd.y*Math.cos(th), 0
+  ).normalize();
 
-  [points.rearHub, points.frontHub].forEach(hub => {
-    const wheel = new THREE.Group();
-    const rimMesh = new THREE.Mesh(new THREE.TorusGeometry(R_WHEEL, rimTubeR, 8, 24), rimMat);
-    const tireMesh = new THREE.Mesh(new THREE.TorusGeometry(R_WHEEL, 0.026, 8, 24), tireMat);
-    tireMesh.scale.set(1,1,0.9);
-    wheel.add(tireMesh, rimMesh);
-    const hubMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.06,10), frameMat);
-    hubMesh.rotation.x = Math.PI/2;
-    wheel.add(hubMesh);
-    for (let i=0;i<spokeCount;i++){
-      const a = (i/spokeCount) * Math.PI * 2;
-      const rimPt = V(Math.sin(a)*(R_WHEEL-0.02), Math.cos(a)*(R_WHEEL-0.02), 0);
-      wheel.add(tube(V(0,0,0), rimPt, 0.004, frameMat, 4));
-    }
-    wheel.position.copy(hub);
-    g.add(wheel);
-  });
+  const spacer = 0.02; // petit empilement au-dessus du tube de direction
+  const p0 = new THREE.Vector3().copy(P.headTop).addScaledVector(axisUp, spacer);   // collier steerer
+  const len = (stem.length_mm || 100) / 1000;
+  const p1 = new THREE.Vector3().copy(p0).addScaledVector(stemDir, len);            // collier cintre
 
-  return g;
-}
+  g.add(tube(p0, p1, 0.013, stemMat)); // corps de potence
 
-/* ---------- swappable groups ---------- */
-const DRIVE_Z = 0.085;
+  // collier steerer (autour du pivot, axe = axisUp)
+  const steererR = (stem.steerer_mm || 28.6)/2000 + 0.004;
+  const sc = new THREE.Mesh(new THREE.CylinderGeometry(steererR, steererR, 0.032, 16), stemMat);
+  sc.quaternion.setFromUnitVectors(V(0,1,0), axisUp);
+  sc.position.copy(p0);
+  g.add(sc);
 
-function colorFor(brand){ return BRAND_COLOR_HEX[brand] ?? 0x6b7280; }
+  // collier cintre (axe = Z, le cintre passera gauche-droite)
+  const barR = (stem.bar_clamp_mm || 31.8)/2000 + 0.003;
+  const bc = new THREE.Mesh(new THREE.CylinderGeometry(barR, barR, 0.042, 16), stemMat);
+  bc.rotation.x = Math.PI/2;
+  bc.position.copy(p1);
+  g.add(bc);
 
-function tintGroup(group, colorHex, incompatible){
-  group.traverse(o => {
-    if (o.isMesh){
-      o.material = o.material.clone();
-      o.material.color.setHex(colorHex);
-      if (incompatible){
-        o.material.emissive.setHex(0xef5b4a);
-        o.material.emissiveIntensity = 0.55;
-      } else {
-        o.material.emissive.setHex(0x000000);
-        o.material.emissiveIntensity = 0;
-      }
-    }
-  });
-}
-
-function buildRearDerailleur(){
-  const P = currentPoints;
-  const g = new THREE.Group();
-  const base = mat(0x999999);
-  const p0 = V(P.rearHub.x - 0.02, P.rearHub.y - 0.05, DRIVE_Z);
-  const p1 = V(P.rearHub.x - 0.03, P.rearHub.y - 0.18, DRIVE_Z);
-  g.add(tube(p0, p1, 0.012, base));
-  const cage = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.09, 0.02), base);
-  cage.position.copy(p1).add(V(0,-0.03,0));
-  g.add(cage);
-  const pulley1 = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,0.012,10), base);
-  pulley1.rotation.x = Math.PI/2;
-  pulley1.position.copy(p1).add(V(0.005,-0.01,0));
-  const pulley2 = pulley1.clone();
-  pulley2.position.copy(p1).add(V(0.005,-0.07,0));
-  g.add(pulley1, pulley2);
-  return g;
-}
-
-function buildFrontDerailleur(visible){
-  const P = currentPoints;
-  const g = new THREE.Group();
-  if (visible){
-    const base = mat(0x999999);
-    const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.02,0.045,0.025), base);
-    clamp.position.set(P.bb.x + 0.02, P.bb.y + 0.15, DRIVE_Z - 0.01);
-    const cage = new THREE.Mesh(new THREE.BoxGeometry(0.008,0.05,0.045), base);
-    cage.position.set(P.bb.x + 0.045, P.bb.y + 0.13, DRIVE_Z + 0.02);
-    g.add(clamp, cage);
-  }
-  g.visible = visible;
-  return g;
-}
-
-function buildCassette(){
-  const P = currentPoints;
-  const g = new THREE.Group();
-  const base = mat(0x999999);
-  for (let i=0;i<6;i++){
-    const r = 0.095 - i*0.011;
-    const disk = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.006, 16), base);
-    disk.rotation.x = Math.PI/2;
-    disk.position.set(P.rearHub.x, P.rearHub.y, DRIVE_Z + 0.01 + i*0.007);
-    g.add(disk);
-  }
-  return g;
-}
-
-function buildCrankset(chainrings){
-  const P = currentPoints;
-  const g = new THREE.Group();
-  const base = mat(0x999999);
-  // crank arms + pedals
-  [0, Math.PI].forEach(angRot => {
-    const armEnd = V(P.bb.x + Math.sin(angRot)*0.17, P.bb.y - Math.cos(angRot)*0.17, DRIVE_Z + 0.03);
-    g.add(tube(V(P.bb.x,P.bb.y,DRIVE_Z+0.03), armEnd, 0.012, base));
-    const pedal = new THREE.Mesh(new THREE.BoxGeometry(0.045,0.012,0.03), mat(0x2b2f38));
-    pedal.position.copy(armEnd);
-    g.add(pedal);
-  });
-  // chainrings
-  const rings = chainrings >= 2 ? [0.115, 0.09] : [0.10];
-  rings.forEach((r,i) => {
-    const disk = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.006, 24), base);
-    disk.rotation.x = Math.PI/2;
-    disk.position.set(P.bb.x, P.bb.y, DRIVE_Z + 0.005 - i*0.012);
-    g.add(disk);
-  });
-  const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.14,10), mat(0x2b2f38));
-  spindle.rotation.x = Math.PI/2;
-  spindle.position.set(P.bb.x, P.bb.y, 0);
-  g.add(spindle);
   return g;
 }
 
@@ -908,25 +940,35 @@ function renderGeometryPanel(frameItem){
   if (!frameItem || !frameItem._raw){ panel.innerHTML = ''; return; }
 
   const raw = frameItem._raw;
-  const rowsHtml = GEOM_FIELDS.map(f => `<tr>
+  const present = f => raw[f.key] !== undefined && raw[f.key] !== null;
+  const dataRow = (f, derived) => `<tr class="${derived ? 'geom-derived' : ''}">
       <td class="geom-label">${f.label}</td>
       <td class="geom-value">${raw[f.key]}</td>
       <td class="geom-unit">${f.unit}</td>
-    </tr>`).join('');
+    </tr>`;
+  const groupHead = txt => `<tr class="geom-group"><td colspan="3">${txt}</td></tr>`;
+
+  const inputRows = GEOM_FIELDS_INPUT.filter(present).map(f => dataRow(f, false)).join('');
+  const derivedFields = GEOM_FIELDS_DERIVED.filter(present);
+  const derivedRows = derivedFields.length
+    ? groupHead('Valeurs dérivées / référence') + derivedFields.map(f => dataRow(f, true)).join('')
+    : '';
 
   panel.innerHTML = `
     <div class="geom-head">
       <span class="geom-title">Géométrie du cadre <i>— taille ${frameItem.taille || ''}</i></span>
     </div>
     <div class="geom-table-wrap">
-      <table class="geom-table"><tbody>${rowsHtml}</tbody></table>
+      <table class="geom-table"><tbody>
+        ${groupHead('Entrées du modèle 3D')}${inputRows}${derivedRows}
+      </tbody></table>
     </div>
   `;
 }
 
 function update(){
-  const issues = framesetOnly ? [] : computeIssues(selection);
-  const flagged = renderSummary(issues);
+  syncFramePickerUI();
+  renderSummary();
 
   const frameItem = findPart('frame', selection.frame);
   renderGeometryPanel(frameItem);
@@ -935,27 +977,8 @@ function update(){
   replaceGroup('frame', built.group);
   currentPoints = built.points;
 
-  if (framesetOnly){
-    ['wheels','rearDerailleur','frontDerailleur','cassette','crankset'].forEach(clearGroup);
-  } else {
-    const wheelItem = findPart('wheels', selection.wheels);
-    replaceGroup('wheels', buildWheels(wheelItem, currentPoints));
-
-    const rd = findPart('rearDerailleur', selection.rearDerailleur);
-    const fd = findPart('frontDerailleur', selection.frontDerailleur);
-    const cs = findPart('cassette', selection.cassette);
-    const ck = findPart('crankset', selection.crankset);
-
-    replaceGroup('rearDerailleur', buildRearDerailleur());
-    replaceGroup('frontDerailleur', buildFrontDerailleur(fd.id !== 'fd-none'));
-    replaceGroup('cassette', buildCassette());
-    replaceGroup('crankset', buildCrankset(ck.chainrings));
-
-    tintGroup(activeGroups.rearDerailleur, colorFor(rd.brand), flagged.has('rearDerailleur'));
-    tintGroup(activeGroups.frontDerailleur, colorFor(fd.brand), flagged.has('frontDerailleur'));
-    tintGroup(activeGroups.cassette, colorFor(cs.brand), flagged.has('cassette'));
-    tintGroup(activeGroups.crankset, colorFor(ck.brand), flagged.has('crankset'));
-  }
+  // cockpit — potence
+  replaceGroup('stem', buildStem(currentPoints, stemApplied));
 }
 
 /* ============================================================
