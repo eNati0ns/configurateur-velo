@@ -319,21 +319,10 @@
 
   <aside id="sidebar">
     <div class="brand-header">
-      <div class="eyebrow">Atelier // Cadre &amp; transmission</div>
+      <div class="eyebrow">Atelier // Cadre &amp; cockpit</div>
       <h1>Configurateur de vélo</h1>
-      <p>Choisis un cadre, des roues, puis les composants du groupe transmission. Le vélo et le résumé en bas se mettent à jour en direct — les incompatibilités s'affichent en rouge.</p>
+      <p>Choisis un cadre et sa taille, puis règle la potence. Le vélo et le résumé en bas se mettent à jour en direct.</p>
     </div>
-
-    <div class="legend">
-      <span><i class="dot" style="background:var(--shimano)"></i>Shimano</span>
-      <span><i class="dot" style="background:var(--sram)"></i>SRAM</span>
-      <span><i class="dot" style="background:var(--campy)"></i>Campagnolo</span>
-    </div>
-
-    <label class="frameset-toggle">
-      <input type="checkbox" id="frameset-only-checkbox" checked>
-      <span>Frameset only <i>— cadre &amp; fourche seuls, sans roues ni groupe</i></span>
-    </label>
 
     <div id="categories"></div>
 
@@ -352,7 +341,7 @@
     </div>
     <div class="hud hud-tr mono">
       <div>SCALE 1:1</div>
-      <div class="sub">GROUPE::TRANSMISSION</div>
+      <div class="sub">CADRE::COCKPIT</div>
     </div>
     <div class="orbit-hint">◐ CLIC + GLISSER = ORBITE · MOLETTE = ZOOM</div>
     <div id="boot-error" class="boot-error">
@@ -375,7 +364,6 @@
       <div class="weight-total mono">Poids total configuré &nbsp; <b id="total-weight">—</b></div>
     </div>
     <div class="rows" id="rows"></div>
-    <div id="issues"></div>
     <div id="geom-panel"></div>
   </div>
 
@@ -407,23 +395,8 @@ function mapDatabase(raw){
     frame: (raw.cadres || []).map(x => ({
       id: x.id, brand: x.collection || '', model: x.nom, weight: x.poids_g, swatch: x.couleur,
       taille: x.taille,
-      _raw: x, // valeurs brutes mm/deg, conservées pour le tableau éditable
+      _raw: x, // valeurs brutes mm/deg
       ...frameFieldsFromRaw(x),
-    })),
-    wheels: (raw.roues || []).map(x => ({
-      id: x.id, brand: x.marque, model: x.modele, weight: x.poids_g, swatch: x.couleur, profile: x.profil_mm
-    })),
-    rearDerailleur: (raw.derailleurs_arriere || []).map(x => ({
-      id: x.id, brand: x.marque, model: x.modele, speed: x.vitesses, weight: x.poids_g
-    })),
-    frontDerailleur: (raw.derailleurs_avant || []).map(x => ({
-      id: x.id, brand: x.marque, model: x.modele, speed: x.vitesses, weight: x.poids_g
-    })),
-    cassette: (raw.cassettes || []).map(x => ({
-      id: x.id, brand: x.marque, model: x.modele, speed: x.vitesses, weight: x.poids_g
-    })),
-    crankset: (raw.manivelles || []).map(x => ({
-      id: x.id, brand: x.marque, model: x.modele, chainrings: x.plateaux, weight: x.poids_g
     })),
   };
 }
@@ -455,12 +428,7 @@ async function loadDatabase(){
 }
 
 const CATEGORY_META = {
-  frame:           { label:'Cadre',               short:'CADRE',      n:'00', desc:'Géométrie exacte issue de la fiche technique du fabricant (reach, stack, angles, empattement...).' },
-  wheels:          { label:'Roues',                short:'ROUES',      n:'01' },
-  rearDerailleur:  { label:'Dérailleur arrière',   short:'DÉR. ARR.',  n:'02' },
-  frontDerailleur: { label:'Dérailleur avant',     short:'DÉR. AVT.',  n:'03' },
-  cassette:        { label:'Cassette',             short:'CASSETTE',   n:'04' },
-  crankset:        { label:'Manivelles',           short:'MANIVELLES', n:'05' },
+  frame: { label:'Cadre', short:'CADRE', n:'00', desc:'Géométrie exacte issue de la fiche technique du fabricant (reach, stack, angles, empattement...).' },
 };
 
 /* ============================================================
@@ -546,64 +514,10 @@ function computeGeometryPoints(f, wheelR){
   return { rearHub, frontHub, bb, headTop, headBottom, seatTop, seatStayAttach, wheelR };
 }
 
-const BRAND_COLOR = { 'Shimano':'#3fa9f5', 'SRAM':'#e0942c', 'Campagnolo':'#b06bd1', '—':'#6b7280' };
-const BRAND_COLOR_HEX = { 'Shimano':0x3fa9f5, 'SRAM':0xe0942c, 'Campagnolo':0xb06bd1, '—':0x6b7280 };
-
-/* ============================================================
-   ⚙️ RÈGLES DE COMPATIBILITÉ — bloc isolé, remplaçable facilement
-   ============================================================ */
-function computeIssues(sel){
-  const rd = findPart('rearDerailleur', sel.rearDerailleur);
-  const fd = findPart('frontDerailleur', sel.frontDerailleur);
-  const cs = findPart('cassette', sel.cassette);
-  const ck = findPart('crankset', sel.crankset);
-  const issues = [];
-
-  // Règle 1 — mélange de marques entre dérailleurs avant/arrière
-  if (fd.id !== 'fd-none' && fd.brand !== rd.brand) {
-    issues.push({
-      parts: ['rearDerailleur','frontDerailleur'],
-      message: `Mélange de marques : dérailleur arrière ${rd.brand} incompatible avec dérailleur avant ${fd.brand} (tirage de câble différent).`
-    });
-  }
-
-  // Règle 2 — nombre de vitesses cassette vs dérailleur arrière
-  if (rd.speed !== cs.speed) {
-    issues.push({
-      parts: ['rearDerailleur','cassette'],
-      message: `Vitesses différentes : dérailleur arrière ${rd.speed}v ≠ cassette ${cs.speed}v.`
-    });
-  }
-
-  // Règle 3 — manivelles multi-plateaux sans dérailleur avant
-  if (ck.chainrings >= 2 && fd.id === 'fd-none') {
-    issues.push({
-      parts: ['crankset','frontDerailleur'],
-      message: `Manivelles ${ck.chainrings} plateaux : un dérailleur avant est nécessaire.`
-    });
-  }
-
-  // Règle 4 — dérailleur avant monté sur manivelles mono-plateau
-  if (ck.chainrings === 1 && fd.id !== 'fd-none') {
-    issues.push({
-      parts: ['crankset','frontDerailleur'],
-      message: `Dérailleur avant inutile avec des manivelles mono-plateau (1x).`
-    });
-  }
-
-  return issues;
-}
-/* ============================================================ */
-
 function findPart(cat, id){ return PARTS_DATA[cat].find(p => p.id === id); }
 
 let selection = {
-  frame:           'f-sl9-52',
-  wheels:          'w-alu',
-  rearDerailleur:  'shim-105',
-  frontDerailleur: 'shim-105-fd',
-  cassette:        'shim-105-cs',
-  crankset:        'shim-105-crk',
+  frame: 'f-sl9-52',
 };
 const DEFAULT_SELECTION = { ...selection };
 
@@ -625,15 +539,9 @@ let stemApplied = { ...STEM_STANDARD };
 /* ============================================================
    UI — panneau gauche
    ============================================================ */
-let framesetOnly = true;
-const FRAME_ONLY_CATS = ['frame'];
-
 const categoriesEl = document.getElementById('categories');
 
-function visibleCategories(){
-  const all = Object.keys(PARTS_DATA);
-  return framesetOnly ? all.filter(c => FRAME_ONLY_CATS.includes(c)) : all;
-}
+function visibleCategories(){ return ['frame']; }
 
 function renderPanel(){
   categoriesEl.innerHTML = '';
@@ -654,36 +562,13 @@ function renderPanel(){
       wrap.appendChild(desc);
     }
 
-    if (cat === 'frame'){
-      renderFramePicker(wrap);
-    } else {
-      PARTS_DATA[cat].forEach(part => {
-        const btn = document.createElement('button');
-        btn.className = 'option';
-        btn.dataset.cat = cat;
-        btn.dataset.id = part.id;
-        const color = part.swatch || BRAND_COLOR[part.brand] || '#6b7280';
-        btn.innerHTML = `
-          <span class="dot" style="background:${color}"></span>
-          <span class="label">
-            <span class="brand">${part.brand}</span>
-            <span class="model">${part.model}</span>
-          </span>
-          <span class="weight mono">${part.weight ? part.weight + 'g' : '—'}</span>
-        `;
-        btn.addEventListener('click', () => {
-          selection[cat] = part.id;
-          update();
-        });
-        wrap.appendChild(btn);
-      });
-    }
+    if (cat === 'frame') renderFramePicker(wrap);
 
     categoriesEl.appendChild(wrap);
   });
 
-  // Cockpit (potence) — uniquement en vélo complet, pas en frameset only
-  if (!framesetOnly) renderCockpit();
+  // Cockpit (potence)
+  renderCockpit();
 }
 
 /* ============================================================
@@ -694,7 +579,7 @@ function renderCockpit(){
   const wrap = document.createElement('div');
   wrap.className = 'category';
   wrap.innerHTML = `
-    <div class="category-head"><span class="name">Cockpit</span><span class="idx mono">06</span></div>
+    <div class="category-head"><span class="name">Cockpit</span><span class="idx mono">01</span></div>
     <div class="category-desc">Potence — standard route ${std.length_mm} mm · +${std.angle_deg}° · steerer ${std.steerer_mm} / cintre ${std.bar_clamp_mm} mm. Modifie une valeur puis applique.</div>`;
   const editor = document.createElement('div');
   editor.className = 'stem-editor';
@@ -817,11 +702,8 @@ function renderFramePicker(wrap){
 
 document.getElementById('reset-btn').addEventListener('click', () => {
   selection = { ...DEFAULT_SELECTION };
-  update();
-});
-
-document.getElementById('frameset-only-checkbox').addEventListener('change', (e) => {
-  framesetOnly = e.target.checked;
+  stemDraft = { ...STEM_STANDARD };
+  stemApplied = { ...STEM_STANDARD };
   renderPanel();
   update();
 });
@@ -830,59 +712,36 @@ document.getElementById('frameset-only-checkbox').addEventListener('change', (e)
    UI — barre résumé
    ============================================================ */
 const rowsEl = document.getElementById('rows');
-const issuesEl = document.getElementById('issues');
 const statusEl = document.getElementById('status');
 const totalWeightEl = document.getElementById('total-weight');
 
-function renderSummary(issues){
-  const flagged = new Set();
-  issues.forEach(iss => iss.parts.forEach(p => flagged.add(p)));
-
-  let total = 0;
+function renderSummary(){
   rowsEl.innerHTML = '';
-  visibleCategories().forEach(cat => {
-    const part = findPart(cat, selection[cat]);
-    total += part.weight || 0;
-    const isWarn = flagged.has(cat);
-    const row = document.createElement('div');
-    row.className = 'row' + (isWarn ? ' warn' : '');
-    row.innerHTML = `
-      <div style="flex:1; min-width:0;">
-        <span class="rlabel">${CATEGORY_META[cat].short}</span>
-        <span class="rvalue">${part.brand !== '—' ? part.brand + ' ' : ''}${part.model}${cat === 'frame' ? ' · Taille ' + part.taille : ''}</span>
-      </div>
-      <span class="rweight mono">${part.weight ? part.weight + 'g' : '—'}</span>
-    `;
-    rowsEl.appendChild(row);
-  });
 
-  totalWeightEl.textContent = total.toLocaleString('fr-CH') + ' g';
+  const frame = findPart('frame', selection.frame);
+  const frameRow = document.createElement('div');
+  frameRow.className = 'row';
+  frameRow.innerHTML = `
+    <div style="flex:1; min-width:0;">
+      <span class="rlabel">${CATEGORY_META.frame.short}</span>
+      <span class="rvalue">${frame.brand ? frame.brand + ' ' : ''}${frame.model} · Taille ${frame.taille}</span>
+    </div>
+    <span class="rweight mono">${frame.weight ? frame.weight + 'g' : '—'}</span>`;
+  rowsEl.appendChild(frameRow);
 
-  if (issues.length === 0){
-    statusEl.className = 'status ok';
-    statusEl.innerHTML = `<span class="pip"></span><span class="txt">Configuration compatible</span>`;
-  } else {
-    statusEl.className = 'status warn';
-    statusEl.innerHTML = `<span class="pip"></span><span class="txt">${issues.length} incompatibilité${issues.length>1?'s':''} détectée${issues.length>1?'s':''}</span>`;
-  }
+  const stemRow = document.createElement('div');
+  stemRow.className = 'row';
+  stemRow.innerHTML = `
+    <div style="flex:1; min-width:0;">
+      <span class="rlabel">POTENCE</span>
+      <span class="rvalue">${stemApplied.length_mm} mm · ${stemApplied.angle_deg >= 0 ? '+' : ''}${stemApplied.angle_deg}°</span>
+    </div>
+    <span class="rweight mono">—</span>`;
+  rowsEl.appendChild(stemRow);
 
-  issuesEl.innerHTML = '';
-  issues.forEach(iss => {
-    const div = document.createElement('div');
-    div.className = 'issue';
-    div.textContent = iss.message;
-    issuesEl.appendChild(div);
-  });
-
-  // état des boutons du panneau
-  document.querySelectorAll('.option').forEach(btn => {
-    const cat = btn.dataset.cat, id = btn.dataset.id;
-    const isSelected = selection[cat] === id;
-    btn.classList.toggle('selected', isSelected);
-    btn.classList.toggle('invalid', isSelected && flagged.has(cat));
-  });
-
-  return flagged;
+  totalWeightEl.textContent = (frame.weight || 0).toLocaleString('fr-CH') + ' g';
+  statusEl.className = 'status ok';
+  statusEl.innerHTML = `<span class="pip"></span><span class="txt">Cadre &amp; cockpit</span>`;
 }
 
 /* ============================================================
@@ -942,11 +801,8 @@ function tube(p1, p2, r, material, segments=8){
 const V = (x,y,z=0) => new THREE.Vector3(x,y,z);
 
 /* ---------- geometry ---------- */
-const R_WHEEL = 0.335;
-let currentPoints = null; // anchor points of the currently built frame, consumed by drivetrain parts
-
-const frameMat = mat(0x39424f, { metalness:0.7, roughness:0.3 });
-const tireMat = mat(0x14161b, { metalness:0.1, roughness:0.9 });
+const R_WHEEL = 0.335;         // rayon de roue de référence (positionne le BB / les moyeux)
+let currentPoints = null;      // points d'ancrage du cadre courant, consommés par la potence
 
 /* Couleurs fixes, identiques pour tous les cadres : cadre blanc, fourche
    gris prononcé. On ignore volontairement le champ couleur des données. */
@@ -1059,133 +915,6 @@ function buildStem(P, stem){
   return g;
 }
 
-/* Construit une paire de roues à partir de la géométrie du cadre actif.
-   Le profil (profile, en mm) épaissit visuellement la jante — plus une
-   roue est "aéro", plus son profil est haut, moins elle a de rayons. */
-function buildWheels(item, points){
-  const g = new THREE.Group();
-  const rimMat = mat(item.swatch || 0xc9c9c9, { metalness:0.6, roughness:0.32 });
-  const profile = item.profile || 24;
-  const rimTubeR = 0.013 + profile * 0.00055;
-  const spokeCount = profile >= 40 ? 5 : 10;
-
-  [points.rearHub, points.frontHub].forEach(hub => {
-    const wheel = new THREE.Group();
-    const rimMesh = new THREE.Mesh(new THREE.TorusGeometry(R_WHEEL, rimTubeR, 8, 24), rimMat);
-    const tireMesh = new THREE.Mesh(new THREE.TorusGeometry(R_WHEEL, 0.026, 8, 24), tireMat);
-    tireMesh.scale.set(1,1,0.9);
-    wheel.add(tireMesh, rimMesh);
-    const hubMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.06,10), frameMat);
-    hubMesh.rotation.x = Math.PI/2;
-    wheel.add(hubMesh);
-    for (let i=0;i<spokeCount;i++){
-      const a = (i/spokeCount) * Math.PI * 2;
-      const rimPt = V(Math.sin(a)*(R_WHEEL-0.02), Math.cos(a)*(R_WHEEL-0.02), 0);
-      wheel.add(tube(V(0,0,0), rimPt, 0.004, frameMat, 4));
-    }
-    wheel.position.copy(hub);
-    g.add(wheel);
-  });
-
-  return g;
-}
-
-/* ---------- swappable groups ---------- */
-const DRIVE_Z = 0.085;
-
-function colorFor(brand){ return BRAND_COLOR_HEX[brand] ?? 0x6b7280; }
-
-function tintGroup(group, colorHex, incompatible){
-  group.traverse(o => {
-    if (o.isMesh){
-      o.material = o.material.clone();
-      o.material.color.setHex(colorHex);
-      if (incompatible){
-        o.material.emissive.setHex(0xef5b4a);
-        o.material.emissiveIntensity = 0.55;
-      } else {
-        o.material.emissive.setHex(0x000000);
-        o.material.emissiveIntensity = 0;
-      }
-    }
-  });
-}
-
-function buildRearDerailleur(){
-  const P = currentPoints;
-  const g = new THREE.Group();
-  const base = mat(0x999999);
-  const p0 = V(P.rearHub.x - 0.02, P.rearHub.y - 0.05, DRIVE_Z);
-  const p1 = V(P.rearHub.x - 0.03, P.rearHub.y - 0.18, DRIVE_Z);
-  g.add(tube(p0, p1, 0.012, base));
-  const cage = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.09, 0.02), base);
-  cage.position.copy(p1).add(V(0,-0.03,0));
-  g.add(cage);
-  const pulley1 = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,0.012,10), base);
-  pulley1.rotation.x = Math.PI/2;
-  pulley1.position.copy(p1).add(V(0.005,-0.01,0));
-  const pulley2 = pulley1.clone();
-  pulley2.position.copy(p1).add(V(0.005,-0.07,0));
-  g.add(pulley1, pulley2);
-  return g;
-}
-
-function buildFrontDerailleur(visible){
-  const P = currentPoints;
-  const g = new THREE.Group();
-  if (visible){
-    const base = mat(0x999999);
-    const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.02,0.045,0.025), base);
-    clamp.position.set(P.bb.x + 0.02, P.bb.y + 0.15, DRIVE_Z - 0.01);
-    const cage = new THREE.Mesh(new THREE.BoxGeometry(0.008,0.05,0.045), base);
-    cage.position.set(P.bb.x + 0.045, P.bb.y + 0.13, DRIVE_Z + 0.02);
-    g.add(clamp, cage);
-  }
-  g.visible = visible;
-  return g;
-}
-
-function buildCassette(){
-  const P = currentPoints;
-  const g = new THREE.Group();
-  const base = mat(0x999999);
-  for (let i=0;i<6;i++){
-    const r = 0.095 - i*0.011;
-    const disk = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.006, 16), base);
-    disk.rotation.x = Math.PI/2;
-    disk.position.set(P.rearHub.x, P.rearHub.y, DRIVE_Z + 0.01 + i*0.007);
-    g.add(disk);
-  }
-  return g;
-}
-
-function buildCrankset(chainrings){
-  const P = currentPoints;
-  const g = new THREE.Group();
-  const base = mat(0x999999);
-  // crank arms + pedals
-  [0, Math.PI].forEach(angRot => {
-    const armEnd = V(P.bb.x + Math.sin(angRot)*0.17, P.bb.y - Math.cos(angRot)*0.17, DRIVE_Z + 0.03);
-    g.add(tube(V(P.bb.x,P.bb.y,DRIVE_Z+0.03), armEnd, 0.012, base));
-    const pedal = new THREE.Mesh(new THREE.BoxGeometry(0.045,0.012,0.03), mat(0x2b2f38));
-    pedal.position.copy(armEnd);
-    g.add(pedal);
-  });
-  // chainrings
-  const rings = chainrings >= 2 ? [0.115, 0.09] : [0.10];
-  rings.forEach((r,i) => {
-    const disk = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.006, 24), base);
-    disk.rotation.x = Math.PI/2;
-    disk.position.set(P.bb.x, P.bb.y, DRIVE_Z + 0.005 - i*0.012);
-    g.add(disk);
-  });
-  const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.14,10), mat(0x2b2f38));
-  spindle.rotation.x = Math.PI/2;
-  spindle.position.set(P.bb.x, P.bb.y, 0);
-  g.add(spindle);
-  return g;
-}
-
 const activeGroups = {};
 function replaceGroup(cat, newGroup){
   if (activeGroups[cat]){
@@ -1239,9 +968,7 @@ function renderGeometryPanel(frameItem){
 
 function update(){
   syncFramePickerUI();
-
-  const issues = framesetOnly ? [] : computeIssues(selection);
-  const flagged = renderSummary(issues);
+  renderSummary();
 
   const frameItem = findPart('frame', selection.frame);
   renderGeometryPanel(frameItem);
@@ -1250,29 +977,8 @@ function update(){
   replaceGroup('frame', built.group);
   currentPoints = built.points;
 
-  if (framesetOnly){
-    ['wheels','rearDerailleur','frontDerailleur','cassette','crankset','stem'].forEach(clearGroup);
-  } else {
-    const wheelItem = findPart('wheels', selection.wheels);
-    replaceGroup('wheels', buildWheels(wheelItem, currentPoints));
-
-    replaceGroup('stem', buildStem(currentPoints, stemApplied));
-
-    const rd = findPart('rearDerailleur', selection.rearDerailleur);
-    const fd = findPart('frontDerailleur', selection.frontDerailleur);
-    const cs = findPart('cassette', selection.cassette);
-    const ck = findPart('crankset', selection.crankset);
-
-    replaceGroup('rearDerailleur', buildRearDerailleur());
-    replaceGroup('frontDerailleur', buildFrontDerailleur(fd.id !== 'fd-none'));
-    replaceGroup('cassette', buildCassette());
-    replaceGroup('crankset', buildCrankset(ck.chainrings));
-
-    tintGroup(activeGroups.rearDerailleur, colorFor(rd.brand), flagged.has('rearDerailleur'));
-    tintGroup(activeGroups.frontDerailleur, colorFor(fd.brand), flagged.has('frontDerailleur'));
-    tintGroup(activeGroups.cassette, colorFor(cs.brand), flagged.has('cassette'));
-    tintGroup(activeGroups.crankset, colorFor(ck.brand), flagged.has('crankset'));
-  }
+  // cockpit — potence
+  replaceGroup('stem', buildStem(currentPoints, stemApplied));
 }
 
 /* ============================================================
