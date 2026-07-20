@@ -526,12 +526,13 @@ const DEFAULT_SELECTION = { ...selection };
    Valeurs standard route ; l'utilisateur les modifie dans le tableau puis
    applique. stemDraft = tableau en cours ; stemApplied = valeurs en 3D.
    ============================================================ */
-const STEM_STANDARD = { length_mm:100, angle_deg:8, steerer_mm:28.6, bar_clamp_mm:31.8 };
+const STEM_STANDARD = { length_mm:100, angle_deg:8, steerer_mm:28.6, bar_clamp_mm:31.8, spacers_mm:20 };
 const STEM_FIELDS = [
   { key:'length_mm',    label:'Longueur',          unit:'mm' },
   { key:'angle_deg',    label:'Angle',             unit:'°'  },
   { key:'steerer_mm',   label:'⌀ Tube de fourche', unit:'mm' },
   { key:'bar_clamp_mm', label:'⌀ Cintre',          unit:'mm' },
+  { key:'spacers_mm',   label:'Spacers',           unit:'mm' },
 ];
 let stemDraft   = { ...STEM_STANDARD };
 let stemApplied = { ...STEM_STANDARD };
@@ -580,7 +581,7 @@ function renderCockpit(){
   wrap.className = 'category';
   wrap.innerHTML = `
     <div class="category-head"><span class="name">Cockpit</span><span class="idx mono">01</span></div>
-    <div class="category-desc">Potence — standard route ${std.length_mm} mm · +${std.angle_deg}° · steerer ${std.steerer_mm} / cintre ${std.bar_clamp_mm} mm. Modifie une valeur puis applique.</div>`;
+    <div class="category-desc">Potence (vert) — standard ${std.length_mm} mm · +${std.angle_deg}° · steerer ${std.steerer_mm} / cintre ${std.bar_clamp_mm} mm · spacers ${std.spacers_mm} mm (rouge, 0 = aucun). Modifie une valeur puis applique.</div>`;
   const editor = document.createElement('div');
   editor.className = 'stem-editor';
   editor.innerHTML = STEM_FIELDS.map(f => `
@@ -873,11 +874,13 @@ function buildFrame(frameItem){
 }
 
 /* Potence (cockpit) — composant paramétrable. Se serre sur le pivot de
-   fourche (steerer) juste au-dessus du tube de direction, part vers l'avant
-   selon l'angle de potence, jusqu'au collier de cintre. On dessine le corps
-   + les deux colliers ; le cintre lui-même est un composant à venir. */
-const STEM_COLOR = 0x2e323b; // noir cockpit
-const stemMat = mat(STEM_COLOR, { metalness:0.5, roughness:0.4 });
+   fourche (steerer) au-dessus de la pile de spacers, part vers l'avant selon
+   l'angle jusqu'au collier de cintre. Corps + 2 colliers en vert ; les
+   spacers (rouge) empilés sous la potence la font monter d'autant. */
+const STEM_COLOR   = 0x2fbf6b; // potence : vert
+const SPACER_COLOR = 0xe0463a; // spacers : rouge
+const stemMat   = mat(STEM_COLOR,   { metalness:0.45, roughness:0.40 });
+const spacerMat = mat(SPACER_COLOR, { metalness:0.35, roughness:0.50 });
 
 function buildStem(P, stem){
   const g = new THREE.Group();
@@ -891,21 +894,32 @@ function buildStem(P, stem){
     perpFwd.x*Math.sin(th) + perpFwd.y*Math.cos(th), 0
   ).normalize();
 
-  const spacer = 0.02; // petit empilement au-dessus du tube de direction
-  const p0 = new THREE.Vector3().copy(P.headTop).addScaledVector(axisUp, spacer);   // collier steerer
+  const steererR = (stem.steerer_mm || 28.6)/2000 + 0.004; // rayon colliers / spacers
+  const clampH = 0.032;                                     // hauteur du collier steerer
+  const spacerH = Math.max(stem.spacers_mm || 0, 0) / 1000; // pile de spacers
+
+  // pile de spacers (rouge) au-dessus du tube de direction, si > 0
+  if (spacerH > 0){
+    const sp = new THREE.Mesh(new THREE.CylinderGeometry(steererR, steererR, spacerH, 16), spacerMat);
+    sp.quaternion.setFromUnitVectors(V(0,1,0), axisUp);
+    sp.position.copy(P.headTop).addScaledVector(axisUp, spacerH/2);
+    g.add(sp);
+  }
+
+  // la potence se pose au-dessus des spacers
+  const p0 = new THREE.Vector3().copy(P.headTop).addScaledVector(axisUp, spacerH + clampH/2); // collier steerer
   const len = (stem.length_mm || 100) / 1000;
-  const p1 = new THREE.Vector3().copy(p0).addScaledVector(stemDir, len);            // collier cintre
+  const p1 = new THREE.Vector3().copy(p0).addScaledVector(stemDir, len);                       // collier cintre
 
-  g.add(tube(p0, p1, 0.013, stemMat)); // corps de potence
+  g.add(tube(p0, p1, 0.013, stemMat)); // corps de potence (vert)
 
-  // collier steerer (autour du pivot, axe = axisUp)
-  const steererR = (stem.steerer_mm || 28.6)/2000 + 0.004;
-  const sc = new THREE.Mesh(new THREE.CylinderGeometry(steererR, steererR, 0.032, 16), stemMat);
+  // collier steerer (vert, axe = axisUp)
+  const sc = new THREE.Mesh(new THREE.CylinderGeometry(steererR, steererR, clampH, 16), stemMat);
   sc.quaternion.setFromUnitVectors(V(0,1,0), axisUp);
   sc.position.copy(p0);
   g.add(sc);
 
-  // collier cintre (axe = Z, le cintre passera gauche-droite)
+  // collier cintre (vert, axe = Z, le cintre passera gauche-droite)
   const barR = (stem.bar_clamp_mm || 31.8)/2000 + 0.003;
   const bc = new THREE.Mesh(new THREE.CylinderGeometry(barR, barR, 0.042, 16), stemMat);
   bc.rotation.x = Math.PI/2;
