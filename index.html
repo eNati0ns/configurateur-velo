@@ -919,6 +919,14 @@ function buildFrame(frameItem){
   g.add(tube(pts.seatTop, pts.seatPost, r.seatpost, frameTubeMat));  // tige de selle
   g.add(tube(pts.headBottom, pts.headTop, r.head, frameTubeMat));    // tube de direction
 
+  // boîtier de pédalier BSA (route) : coquille filetée 68 mm de large,
+  // ⌀ ~40 mm, axe aligné sur l'axe de pédalier (Z). Remplit la jonction
+  // tube de selle / diagonal / bases.
+  const bbShell = new THREE.Mesh(new THREE.CylinderGeometry(0.0205, 0.0205, 0.068, 20), frameTubeMat);
+  bbShell.rotation.x = Math.PI/2;
+  bbShell.position.set(pts.bb.x, pts.bb.y, 0);
+  g.add(bbShell);
+
   // triangle arrière — paires qui enjambent la roue
   addTubePair(g, pts.bb, pts.rearHub, HUB.bbHalf, HUB.rearDropoutHalf, r.chainstay, frameTubeMat);        // bases
   addTubePair(g, pts.seatStayAttach, pts.rearHub, HUB.seatstayTopHalf, HUB.rearDropoutHalf, r.seatstay, frameTubeMat); // haubans
