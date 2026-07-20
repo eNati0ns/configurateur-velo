@@ -269,8 +269,10 @@
     <div id="boot-error" class="boot-error">
       <div class="boot-error-box">
         <div class="boot-error-title">⚠ Base de données introuvable</div>
-        <p>Le fichier <code>data/parts.json</code> n'a pas pu être chargé.</p>
-        <p>Si tu as ouvert <code>index.html</code> directement depuis ton ordinateur (double-clic), c'est normal : les navigateurs bloquent ce type de chargement en local. Une fois le site déployé (Netlify, GitHub Pages...), ça fonctionnera normalement.</p>
+        <div id="boot-error-detail">
+          <p>Le fichier <code>data/parts.json</code> n'a pas pu être chargé.</p>
+          <p>Si tu as ouvert <code>index.html</code> directement depuis ton ordinateur (double-clic), c'est normal : les navigateurs bloquent ce type de chargement en local. Une fois le site déployé (Netlify, GitHub Pages...), ça fonctionnera normalement.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -289,8 +291,19 @@
 
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="vendor/three.min.js"></script>
 <script>
+/* Garde-fou : si three.js n'a pas pu se charger (bloqué par un pare-feu
+   d'entreprise, un bloqueur de script, etc.), on le signale clairement
+   au lieu de laisser l'écran figé sur "Chargement…". */
+if (typeof THREE === 'undefined') {
+  const banner = document.getElementById('boot-error');
+  banner.querySelector('.boot-error-title').textContent = '⚠ Bibliothèque 3D introuvable';
+  banner.querySelector('#boot-error-detail').innerHTML = "<p>Le fichier <code>vendor/three.min.js</code> n'a pas pu se charger. Vérifie qu'il est bien présent à côté de <code>index.html</code>, ou que rien (pare-feu, bloqueur de script) ne l'empêche de charger.</p>";
+  banner.style.display = 'flex';
+  throw new Error('three.js indisponible');
+}
+
 /* ============================================================
    BASE DE DONNÉES — chargée depuis data/parts.json
    Le JSON utilise des noms de champs en français ; on les traduit
