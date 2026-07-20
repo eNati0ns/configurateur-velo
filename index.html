@@ -227,6 +227,40 @@
   }
   .issue::before{ content:"⚠"; flex-shrink:0; }
 
+  #geom-panel{ margin-top: 14px; border-top: 1px solid var(--border-soft); padding-top: 12px; }
+  .geom-head{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin-bottom: 9px;
+  }
+  .geom-head .geom-title{ font-size:12.5px; font-weight:600; }
+  .geom-head .geom-title i{ font-style:normal; color: var(--text-faint); font-size:10.5px; font-weight:400; }
+  #geom-apply-btn{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:0.04em;
+    background: var(--accent-dim); color: var(--text); border:1px solid var(--accent);
+    border-radius: var(--radius); padding:6px 12px; cursor:pointer;
+  }
+  #geom-apply-btn:hover{ background: var(--accent); }
+  #geom-apply-btn:disabled{ opacity:0.35; cursor:default; background:transparent; border-color: var(--border); }
+
+  .geom-table-wrap{ max-height: 220px; overflow-y:auto; border:1px solid var(--border-soft); border-radius: var(--radius); }
+  .geom-table-wrap::-webkit-scrollbar{ width:6px; }
+  .geom-table-wrap::-webkit-scrollbar-thumb{ background: var(--border); border-radius:4px; }
+  table.geom-table{ width:100%; border-collapse:collapse; font-size:11.5px; }
+  table.geom-table td{ padding:5px 10px; border-bottom:1px solid var(--border-soft); }
+  table.geom-table tr:last-child td{ border-bottom:none; }
+  .geom-label{ color: var(--text-dim); white-space:nowrap; }
+  .geom-value{ font-family:'JetBrains Mono',monospace; text-align:right; color: var(--text); }
+  .geom-value.editable{ cursor:pointer; }
+  .geom-value.editable:hover{ background: rgba(79,157,222,0.08); }
+  .geom-value.dirty{ color: #e8a23f; font-weight:600; }
+  .geom-value input{
+    width:70px; background: var(--bg-2); border:1px solid var(--accent); color: var(--text);
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; text-align:right;
+    border-radius:2px; padding:2px 4px;
+  }
+  .geom-unit{ color: var(--text-faint); font-size:10px; width:26px; }
+  .geom-readonly-badge{ color: var(--text-faint); font-size:9px; }
+
   /* ---------- Responsive ---------- */
   @media (max-width: 880px){
     #app{
@@ -257,7 +291,7 @@
     </div>
 
     <label class="frameset-toggle">
-      <input type="checkbox" id="frameset-only-checkbox">
+      <input type="checkbox" id="frameset-only-checkbox" checked>
       <span>Frameset only <i>— cadre &amp; fourche seuls, sans roues ni groupe</i></span>
     </label>
 
@@ -302,6 +336,7 @@
     </div>
     <div class="rows" id="rows"></div>
     <div id="issues"></div>
+    <div id="geom-panel"></div>
   </div>
 
 </div>
@@ -328,20 +363,12 @@ if (typeof THREE === 'undefined') {
 let PARTS_DATA = null;
 
 function mapDatabase(raw){
-  const mm = v => (v ?? 0) / 1000; // les fiches techniques sont en mm, la scène 3D travaille en m
   return {
     frame: (raw.cadres || []).map(x => ({
       id: x.id, brand: x.collection || '', model: x.nom, weight: x.poids_g, swatch: x.couleur,
       taille: x.taille,
-      reach: mm(x.reach_mm), stack: mm(x.stack_mm),
-      topTubeEffective: mm(x.top_tube_effectif_mm),
-      seatTubeCT: mm(x.seat_tube_ct_mm),
-      headAngleDeg: x.head_angle_deg, seatAngleDeg: x.seat_angle_deg,
-      headTubeLen: mm(x.head_tube_mm),
-      chainstay: mm(x.chainstay_mm), wheelbase: mm(x.wheelbase_mm), frontCentre: mm(x.front_centre_mm),
-      standover: mm(x.standover_mm), bbDrop: mm(x.bb_drop_mm), bbHeight: mm(x.bb_height_mm),
-      forkRake: mm(x.fork_rake_mm), trail: mm(x.trail_mm), forkLengthA2C: mm(x.fork_length_a2c_mm),
-      seatpostLength: mm(x.seatpost_length_mm),
+      _raw: x, // valeurs brutes mm/deg, conservées pour le tableau éditable
+      ...frameFieldsFromRaw(x),
     })),
     wheels: (raw.roues || []).map(x => ({
       id: x.id, brand: x.marque, model: x.modele, weight: x.poids_g, swatch: x.couleur, profile: x.profil_mm
@@ -361,6 +388,25 @@ function mapDatabase(raw){
   };
 }
 
+/* Convertit un objet cadre "brut" (mm/degrés, tel quel dans le JSON ou tel
+   que retapé dans le tableau éditable) vers les champs internes (mètres)
+   utilisés par computeGeometryPoints. Réutilisée pour le chargement initial
+   ET pour appliquer les modifications du tableau éditable. */
+function frameFieldsFromRaw(x){
+  const mm = v => (v ?? 0) / 1000;
+  return {
+    reach: mm(x.reach_mm), stack: mm(x.stack_mm),
+    topTubeEffective: mm(x.top_tube_effectif_mm),
+    seatTubeCT: mm(x.seat_tube_ct_mm),
+    headAngleDeg: x.head_angle_deg, seatAngleDeg: x.seat_angle_deg,
+    headTubeLen: mm(x.head_tube_mm),
+    chainstay: mm(x.chainstay_mm), wheelbase: mm(x.wheelbase_mm), frontCentre: mm(x.front_centre_mm),
+    standover: mm(x.standover_mm), bbDrop: mm(x.bb_drop_mm), bbHeight: mm(x.bb_height_mm),
+    forkRake: mm(x.fork_rake_mm), trail: mm(x.trail_mm), forkLengthA2C: mm(x.fork_length_a2c_mm),
+    seatpostLength: mm(x.seatpost_length_mm),
+  };
+}
+
 async function loadDatabase(){
   const res = await fetch('data/parts.json');
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -376,6 +422,40 @@ const CATEGORY_META = {
   cassette:        { label:'Cassette',             short:'CASSETTE',   n:'04' },
   crankset:        { label:'Manivelles',           short:'MANIVELLES', n:'05' },
 };
+
+/* ============================================================
+   TABLEAU DE GÉOMÉTRIE ÉDITABLE
+   9 champs influencent réellement la forme 3D (voir computeGeometryPoints) ;
+   les 8 autres sont des informations de référence en lecture seule.
+   ============================================================ */
+const GEOM_FIELDS = [
+  { key:'reach_mm',             label:'Reach',                 unit:'mm', editable:true  },
+  { key:'stack_mm',             label:'Stack',                 unit:'mm', editable:true  },
+  { key:'top_tube_effectif_mm', label:'Top Tube (effective)',  unit:'mm', editable:false },
+  { key:'seat_tube_ct_mm',      label:'Seat Tube C-T',         unit:'mm', editable:true  },
+  { key:'head_angle_deg',       label:'Head Angle',            unit:'°',  editable:true  },
+  { key:'seat_angle_deg',       label:'Seat Angle',            unit:'°',  editable:true  },
+  { key:'head_tube_mm',         label:'Head Tube',             unit:'mm', editable:true  },
+  { key:'chainstay_mm',         label:'Chainstay',             unit:'mm', editable:true  },
+  { key:'wheelbase_mm',         label:'Wheelbase',             unit:'mm', editable:false },
+  { key:'front_centre_mm',      label:'Front Centre',          unit:'mm', editable:true  },
+  { key:'standover_mm',         label:'Standover',             unit:'mm', editable:false },
+  { key:'bb_drop_mm',           label:'BB Drop',               unit:'mm', editable:true  },
+  { key:'bb_height_mm',         label:'BB Height',             unit:'mm', editable:false },
+  { key:'fork_rake_mm',         label:'Fork Rake / Offset',    unit:'mm', editable:false },
+  { key:'trail_mm',             label:'Trail',                 unit:'mm', editable:false },
+  { key:'fork_length_a2c_mm',   label:'Fork Length (A2C)',     unit:'mm', editable:false },
+  { key:'seatpost_length_mm',   label:'Seatpost Length',       unit:'mm', editable:false },
+];
+
+let geomDraft = {};      // valeurs retapées dans le tableau, pas encore appliquées au cadre 3D
+let geom3DOverride = {}; // valeurs effectivement appliquées au cadre 3D (copiées depuis geomDraft au clic sur "Appliquer")
+let geomOverrideFrameId = null; // à quel cadre s'appliquent geomDraft / geom3DOverride
+
+function resetGeomEditState(){
+  geomDraft = {};
+  geom3DOverride = {};
+}
 
 /* Calcule les points d'ancrage du cadre à partir de mesures réelles
    (fiche géométrique constructeur, en mètres après conversion).
@@ -478,7 +558,7 @@ const DEFAULT_SELECTION = { ...selection };
 /* ============================================================
    UI — panneau gauche
    ============================================================ */
-let framesetOnly = false;
+let framesetOnly = true;
 const FRAME_ONLY_CATS = ['frame'];
 
 const categoriesEl = document.getElementById('categories');
@@ -849,11 +929,100 @@ function clearGroup(cat){
 /* ============================================================
    BOUCLE PRINCIPALE
    ============================================================ */
+function renderGeometryPanel(frameItem){
+  const panel = document.getElementById('geom-panel');
+  if (!frameItem || !frameItem._raw){ panel.innerHTML = ''; return; }
+
+  // nouveau cadre sélectionné : on repart des valeurs d'origine
+  if (geomOverrideFrameId !== frameItem.id){
+    geomOverrideFrameId = frameItem.id;
+    geomDraft = {};
+    geom3DOverride = {};
+  }
+
+  const raw = frameItem._raw;
+  const rowsHtml = GEOM_FIELDS.map(f => {
+    const baseVal = raw[f.key];
+    const draftVal = geomDraft[f.key];
+    const displayVal = draftVal !== undefined ? draftVal : baseVal;
+    const isDirty = f.editable && draftVal !== undefined && Number(draftVal) !== Number(baseVal);
+    const cls = ['geom-value'];
+    if (f.editable) cls.push('editable');
+    if (isDirty) cls.push('dirty');
+    return `<tr>
+      <td class="geom-label">${f.label}</td>
+      <td class="${cls.join(' ')}" data-key="${f.key}" data-editable="${f.editable}">${displayVal}</td>
+      <td class="geom-unit">${f.unit}</td>
+    </tr>`;
+  }).join('');
+
+  const hasPending = Object.keys(geomDraft).some(k => Number(geomDraft[k]) !== Number(raw[k]));
+
+  panel.innerHTML = `
+    <div class="geom-head">
+      <span class="geom-title">Géométrie du cadre <i>— taille ${frameItem.taille || ''} · double-clique une valeur pour la modifier</i></span>
+      <button id="geom-apply-btn" ${hasPending ? '' : 'disabled'}>Appliquer au cadre 3D</button>
+    </div>
+    <div class="geom-table-wrap">
+      <table class="geom-table"><tbody>${rowsHtml}</tbody></table>
+    </div>
+  `;
+
+  panel.querySelector('table').addEventListener('dblclick', onGeomCellDblClick);
+  const applyBtn = panel.querySelector('#geom-apply-btn');
+  applyBtn.addEventListener('click', () => {
+    geom3DOverride = { ...geomDraft };
+    update();
+  });
+}
+
+function onGeomCellDblClick(e){
+  const td = e.target.closest('.geom-value.editable');
+  if (!td) return;
+  const key = td.dataset.key;
+  const current = td.textContent.trim();
+  td.innerHTML = `<input type="number" step="0.1">`;
+  const input = td.querySelector('input');
+  input.value = current;
+  input.focus();
+  input.select();
+
+  let committed = false;
+  const commit = () => {
+    if (committed) return;
+    committed = true;
+    const val = parseFloat(input.value);
+    if (!isNaN(val)) geomDraft[key] = val;
+    renderGeometryPanel(findPart('frame', selection.frame));
+  };
+  const cancel = () => {
+    if (committed) return;
+    committed = true;
+    renderGeometryPanel(findPart('frame', selection.frame));
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') input.blur();
+    else if (ev.key === 'Escape') cancel();
+  });
+}
+
+/* Fusionne le cadre de base avec les éventuelles valeurs appliquées depuis
+   le tableau éditable (geom3DOverride), et recalcule les champs internes. */
+function getEffectiveFrameItem(base){
+  if (geomOverrideFrameId !== base.id || Object.keys(geom3DOverride).length === 0) return base;
+  const mergedRaw = { ...base._raw, ...geom3DOverride };
+  return { ...base, ...frameFieldsFromRaw(mergedRaw) };
+}
+
 function update(){
   const issues = framesetOnly ? [] : computeIssues(selection);
   const flagged = renderSummary(issues);
 
-  const frameItem = findPart('frame', selection.frame);
+  const baseFrameItem = findPart('frame', selection.frame);
+  renderGeometryPanel(baseFrameItem);
+
+  const frameItem = getEffectiveFrameItem(baseFrameItem);
   const built = buildFrame(frameItem);
   replaceGroup('frame', built.group);
   currentPoints = built.points;
