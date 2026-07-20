@@ -458,41 +458,65 @@ const GEOM_FIELDS = [
   { key:'seatpost_length_mm',   label:'Seatpost Length',       unit:'mm' },
 ];
 
-/* Calcule les points d'ancrage du cadre à partir de mesures réelles
-   (fiche géométrique constructeur, en mètres après conversion).
-   BB = origine locale. Rayon de roue = R_WHEEL (indépendant du cadre,
-   défini par la roue sélectionnée séparément). Chainstay et Front Centre
-   sont des distances en ligne droite BB→moyeu (pas des projections
-   horizontales), d'où le sqrt(d² - bbDrop²) pour trouver le décalage
-   horizontal. Validé numériquement : chainstay_h + frontCentre_h ≈ wheelbase. */
+/* Reconstruit le cadre entièrement à partir du NOYAU de mesures toujours
+   présent sur toutes les fiches constructeur (reach, stack, angles de
+   direction/selle, longueur du tube de direction, chainstay, bb_drop, rake).
+   Les champs parfois absents (front_centre, seat_tube_ct, wheelbase, trail…)
+   ne sont PAS consommés ici : ils sont dérivés, ce qui garantit un rendu
+   correct même pour un cadre à fiche incomplète.
+   BB = origine locale. Rayon de roue = R_WHEEL (défini par la roue). */
 function computeGeometryPoints(f, wheelR){
+  // --- BB par rapport au moyeu arrière ---
+  // chainstay = distance en ligne droite BB→moyeu ; bbDrop = chute verticale.
   const bbX = Math.sqrt(Math.max(f.chainstay*f.chainstay - f.bbDrop*f.bbDrop, 0.0001));
   const bb = new THREE.Vector3(bbX, wheelR - f.bbDrop, 0);
-
   const rearHub = new THREE.Vector3(0, wheelR, 0);
 
-  const frontOffsetX = Math.sqrt(Math.max(f.frontCentre*f.frontCentre - f.bbDrop*f.bbDrop, 0.0001));
-  const frontHub = new THREE.Vector3(bb.x + frontOffsetX, wheelR, 0);
-
+  // --- Haut du tube de direction : reach & stack posés directement ---
+  // Aucun calcul : c'est la définition même du reach (horizontal) et du
+  // stack (vertical) depuis le BB. Toujours exact.
   const headTop = new THREE.Vector3(bb.x + f.reach, bb.y + f.stack, 0);
 
+  // --- Bas du tube de direction ---
   const headAngleRad = f.headAngleDeg * Math.PI/180;
-  const hdx = f.headTubeLen * Math.cos(headAngleRad);
-  const hdy = f.headTubeLen * Math.sin(headAngleRad);
-  const headBottom = new THREE.Vector3(headTop.x + hdx, headTop.y - hdy, 0);
+  const axisDown = new THREE.Vector3(Math.cos(headAngleRad), -Math.sin(headAngleRad), 0); // vers le bas-avant
+  const headBottom = new THREE.Vector3(
+    headTop.x + f.headTubeLen * axisDown.x,
+    headTop.y + f.headTubeLen * axisDown.y, 0);
 
+  // --- Moyeu avant : reconstruit depuis la géométrie de fourche ---
+  // A2C = longueur droite couronne→axe ; rake = déport perpendiculaire à
+  // l'axe de direction. Défaut route (373 mm) si A2C absent (ex. Cervélo S5) :
+  // la position avant y est quasi insensible. Le moyeu est calé à la hauteur
+  // de roue (sol plat, deux roues identiques) — seul son X vient de la fourche.
+  const forkA2C = (f.forkLengthA2C && f.forkLengthA2C > 0) ? f.forkLengthA2C : 0.373;
+  const rake = f.forkRake || 0;
+  const forkPerp = new THREE.Vector3(Math.sin(headAngleRad), Math.cos(headAngleRad), 0); // perpendiculaire, vers l'avant
+  const along = Math.sqrt(Math.max(forkA2C*forkA2C - rake*rake, 0.0001));
+  const frontHub = new THREE.Vector3(
+    headBottom.x + along*axisDown.x + rake*forkPerp.x,
+    wheelR, 0);
+
+  // --- Tube de selle : de BB le long du seat_angle jusqu'au tube supérieur ---
+  // On n'utilise PAS seat_tube_ct (souvent absent). Le sommet du tube de selle
+  // est l'intersection de l'axe de selle avec la ligne du tube supérieur
+  // effectif (à hauteur = stack au-dessus du BB) ; d'où un tube supérieur
+  // effectif horizontal, identité seat_angle × stack.
   const seatAngleRad = f.seatAngleDeg * Math.PI/180;
-  const seatTop = new THREE.Vector3(bb.x - f.seatTubeCT*Math.cos(seatAngleRad), bb.y + f.seatTubeCT*Math.sin(seatAngleRad), 0);
+  const seatTop = new THREE.Vector3(bb.x - f.stack/Math.tan(seatAngleRad), headTop.y, 0);
 
-  // point d'attache des haubans sur le tube de selle — à défaut de mesure
-  // précise, on les attache en haut (style traditionnel) par défaut
-  const seatStayFrac = f.seatstayDropFrac ?? 1.0;
-  const seatStayAttach = new THREE.Vector3().lerpVectors(bb, seatTop, seatStayFrac);
+  // tige de selle apparente (longueur visuelle constante, dans l'axe de selle)
+  const seatDir = new THREE.Vector3(-Math.cos(seatAngleRad), Math.sin(seatAngleRad), 0);
+  const seatPost = new THREE.Vector3(
+    seatTop.x + 0.09*seatDir.x,
+    seatTop.y + 0.09*seatDir.y, 0);
+
+  const seatStayAttach = seatTop.clone(); // haubans attachés en haut du tube de selle
 
   const centerX = frontHub.x / 2;
-  [rearHub, frontHub, bb, headTop, headBottom, seatTop, seatStayAttach].forEach(p => { p.x -= centerX; });
+  [rearHub, frontHub, bb, headTop, headBottom, seatTop, seatPost, seatStayAttach].forEach(p => { p.x -= centerX; });
 
-  return { rearHub, frontHub, bb, headTop, headBottom, seatTop, seatStayAttach, wheelR };
+  return { rearHub, frontHub, bb, headTop, headBottom, seatTop, seatPost, seatStayAttach, wheelR };
 }
 
 const BRAND_COLOR = { 'Shimano':'#3fa9f5', 'SRAM':'#e0942c', 'Campagnolo':'#b06bd1', '—':'#6b7280' };
@@ -653,8 +677,8 @@ function syncFramePickerUI(){
   const part = findPart('frame', selection.frame);
   frameModelInputEl.value = frameModelLabel(part);
   populateFrameSizes(frameModelLabel(part), part.id);
-  const color = part.swatch || '#6b7280';
-  frameMetaEl.innerHTML = `<span class="dot" style="background:${color}"></span><span>${part.weight ? part.weight + ' g' : '—'}</span>`;
+  // pastille = couleur de rendu du cadre (blanc, fixe pour tous les cadres)
+  frameMetaEl.innerHTML = `<span class="dot" style="background:#f2f2f2; border:1px solid var(--border)"></span><span>${part.weight ? part.weight + ' g' : '—'}</span>`;
 }
 
 function renderFramePicker(wrap){
@@ -828,41 +852,38 @@ const R_WHEEL = 0.335;
 let currentPoints = null; // anchor points of the currently built frame, consumed by drivetrain parts
 
 const frameMat = mat(0x39424f, { metalness:0.7, roughness:0.3 });
-const neutralMat = mat(0x555f6e, { metalness:0.6, roughness:0.4 });
 const tireMat = mat(0x14161b, { metalness:0.1, roughness:0.9 });
 
-function frameAccentMat(hex){
-  const c = new THREE.Color(hex);
-  const em = c.clone().multiplyScalar(0.18);
-  return new THREE.MeshStandardMaterial({ color:c, metalness:0.35, roughness:0.3, emissive:em });
-}
-function frameSecondaryMat(hex){
-  const c = new THREE.Color(hex).lerp(new THREE.Color(0x2a2f38), 0.62);
-  return new THREE.MeshStandardMaterial({ color:c, metalness:0.6, roughness:0.4 });
-}
-/* Épaisseurs de tubes par défaut — pas de donnée constructeur pour ça,
-   ce sont des proportions visuelles raisonnables, identiques pour tous
-   les cadres pour l'instant. */
-const DEFAULT_TUBE_R = { top:0.014, down:0.021, seat:0.014, head:0.017, chainstay:0.011, seatstay:0.009, fork:0.015 };
+/* Couleurs fixes, identiques pour tous les cadres : cadre blanc, fourche
+   gris prononcé. On ignore volontairement le champ couleur des données. */
+const FRAME_COLOR = 0xf2f2f2;   // blanc (le blanc pur masquerait l'ombrage)
+const FORK_COLOR  = 0x4a4a4a;   // gris foncé
+const frameTubeMat = mat(FRAME_COLOR, { metalness:0.25, roughness:0.45 });
+const forkTubeMat  = mat(FORK_COLOR,  { metalness:0.45, roughness:0.40 });
 
-/* Construit le cadre (+ fourche) à partir des mesures réelles du cadre
-   sélectionné. Ne dessine QUE la structure du cadre — pas de potence,
-   cintre, selle ou tige de selle : ce sont des composants séparés,
-   pas encore ajoutés au configurateur. */
+/* Diamètres de tube — aucune donnée constructeur, proportions visuelles
+   réalistes (tube diagonal épais, haubans fins) et identiques pour TOUS
+   les cadres. */
+const DEFAULT_TUBE_R = { top:0.014, down:0.021, seat:0.014, head:0.017, chainstay:0.011, seatstay:0.009, fork:0.015, seatpost:0.0125 };
+
+/* Construit le cadre (+ fourche) à partir de la géométrie reconstruite.
+   Triangle principal + triangle arrière en blanc ; seule la fourche avant
+   est en gris prononcé. Ne dessine pas potence/cintre/selle (composants
+   séparés, pas encore ajoutés au configurateur). */
 function buildFrame(frameItem){
   const pts = computeGeometryPoints(frameItem, R_WHEEL);
-  const tubeR = frameItem.tubeR || DEFAULT_TUBE_R;
+  const r = DEFAULT_TUBE_R;
   const g = new THREE.Group();
-  const accent = frameAccentMat(frameItem.swatch);
-  const secondary = frameSecondaryMat(frameItem.swatch);
 
-  g.add(tube(pts.seatTop, pts.headTop, tubeR.top, accent));        // top tube
-  g.add(tube(pts.bb, pts.headBottom, tubeR.down, accent));         // down tube
-  g.add(tube(pts.bb, pts.seatTop, tubeR.seat, accent));            // seat tube
-  g.add(tube(pts.headBottom, pts.headTop, tubeR.head, accent));    // head tube
-  g.add(tube(pts.bb, pts.rearHub, tubeR.chainstay, secondary));            // chainstay
-  g.add(tube(pts.seatStayAttach, pts.rearHub, tubeR.seatstay, secondary)); // seatstay
-  g.add(tube(pts.headBottom, pts.frontHub, tubeR.fork, secondary));        // fork
+  g.add(tube(pts.seatTop, pts.headTop, r.top, frameTubeMat));        // tube supérieur
+  g.add(tube(pts.bb, pts.headBottom, r.down, frameTubeMat));         // tube diagonal
+  g.add(tube(pts.bb, pts.seatTop, r.seat, frameTubeMat));            // tube de selle
+  g.add(tube(pts.seatTop, pts.seatPost, r.seatpost, frameTubeMat));  // tige de selle
+  g.add(tube(pts.headBottom, pts.headTop, r.head, frameTubeMat));    // tube de direction
+  g.add(tube(pts.bb, pts.rearHub, r.chainstay, frameTubeMat));       // base
+  g.add(tube(pts.seatStayAttach, pts.rearHub, r.seatstay, frameTubeMat)); // hauban
+
+  g.add(tube(pts.headBottom, pts.frontHub, r.fork, forkTubeMat));    // fourche (gris)
 
   return { group: g, points: pts };
 }
