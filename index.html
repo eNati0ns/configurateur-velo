@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atelier — Configurateur de transmission</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+  :root{
+    --bg: #10131a;
+    --bg-2: #0b0d12;
+    --panel: rgba(24,28,36,0.82);
+    --panel-solid: #181c24;
+    --border: #2a3040;
+    --border-soft: #232837;
+    --text: #e9e8e2;
+    --text-dim: #8a92a3;
+    --text-faint: #545c6c;
+    --accent: #4f9dde;
+    --accent-dim: #2c4e6b;
+    --ok: #3ecf7d;
+    --warn: #ef5b4a;
+    --warn-bg: rgba(239,91,74,0.10);
+    --shimano: #3fa9f5;
+    --sram: #e0942c;
+    --campy: #b06bd1;
+    --neutral: #6b7280;
+    --radius: 3px;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin:0; padding:0; height:100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    overflow: hidden;
+  }
+
+  .mono{ font-family:'JetBrains Mono', monospace; }
+
+  #app{
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: 1fr auto;
+    grid-template-areas:
+      "sidebar canvas"
+      "sidebar summary";
+  }
+
+  /* ---------- Canvas / 3D ---------- */
+  #canvas-wrap{
+    grid-area: canvas;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 50% 30%, #161b24 0%, var(--bg-2) 70%);
+  }
+  #scene-canvas{ display:block; width:100%; height:100%; cursor: grab; touch-action: none; }
+  #scene-canvas:active{ cursor: grabbing; }
+
+  .hud{
+    position:absolute; pointer-events:none; color: var(--text-faint);
+    font-family:'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.08em;
+  }
+  .hud-tl{ top:18px; left:22px; }
+  .hud-tr{ top:18px; right:22px; text-align:right; }
+  .hud-br{ bottom:18px; right:22px; text-align:right; }
+  .hud .title{ color: var(--text); font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:600; letter-spacing:0.01em; }
+  .hud .sub{ margin-top:2px; color: var(--text-dim); }
+  .crosshair{ position:absolute; width:14px; height:14px; }
+  .crosshair::before, .crosshair::after{ content:""; position:absolute; background: var(--border); }
+  .crosshair::before{ width:100%; height:1px; top:50%; }
+  .crosshair::after{ width:1px; height:100%; left:50%; }
+  .c-tl{ top:14px; left:14px; }
+  .c-tr{ top:14px; right:14px; }
+  .c-bl{ bottom:14px; left:14px; }
+  .c-br{ bottom:14px; right:14px; }
+
+  .orbit-hint{
+    position:absolute; bottom:18px; left:22px; font-family:'JetBrains Mono',monospace;
+    font-size:10px; color: var(--text-faint); letter-spacing:0.06em; pointer-events:none;
+  }
+
+  .boot-error{
+    display:none; position:absolute; inset:0; z-index:20;
+    align-items:center; justify-content:center;
+    background: rgba(11,13,18,0.92); backdrop-filter: blur(4px);
+  }
+  .boot-error-box{
+    max-width: 420px; padding: 22px 24px; border: 1px solid var(--warn);
+    border-radius: var(--radius); background: var(--panel-solid);
+  }
+  .boot-error-title{ color: var(--warn); font-weight:700; font-size:14px; margin-bottom:10px; }
+  .boot-error-box p{ font-size:12.5px; color: var(--text-dim); line-height:1.6; margin:0 0 8px; }
+  .boot-error-box code{ font-family:'JetBrains Mono',monospace; color: var(--text); background: rgba(255,255,255,0.06); padding:1px 5px; border-radius:2px; }
+
+  /* ---------- Sidebar ---------- */
+  #sidebar{
+    grid-area: sidebar;
+    background: var(--panel);
+    backdrop-filter: blur(10px);
+    border-right: 1px solid var(--border-soft);
+    overflow-y: auto;
+    padding: 20px 16px 24px;
+    z-index: 5;
+  }
+  #sidebar::-webkit-scrollbar{ width:6px; }
+  #sidebar::-webkit-scrollbar-thumb{ background: var(--border); border-radius: 4px; }
+
+  .brand-header{ margin-bottom: 18px; }
+  .brand-header .eyebrow{
+    font-family:'JetBrains Mono',monospace; font-size:10px; color: var(--accent);
+    letter-spacing:0.14em; text-transform:uppercase; margin-bottom:4px;
+  }
+  .brand-header h1{ font-size:18px; margin:0; font-weight:700; letter-spacing:-0.01em; }
+  .brand-header p{ margin:6px 0 0; font-size:12px; color: var(--text-dim); line-height:1.5; }
+
+  .legend{
+    display:flex; gap:12px; margin: 14px 0 20px;
+    font-family:'JetBrains Mono',monospace; font-size:10px; color: var(--text-dim);
+  }
+  .legend span{ display:flex; align-items:center; gap:5px; }
+  .dot{ width:7px; height:7px; border-radius:50%; display:inline-block; }
+
+  .category{ margin-bottom: 22px; }
+  .category-head{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border-soft);
+  }
+  .category-head .name{ font-size:12.5px; font-weight:600; letter-spacing:0.01em; }
+  .category-head .idx{ font-family:'JetBrains Mono',monospace; font-size:10px; color: var(--text-faint); }
+  .category-desc{ font-size:10.5px; color: var(--text-faint); line-height:1.4; margin:-2px 0 8px; }
+
+  .option{
+    display:flex; align-items:center; gap:9px;
+    width:100%; text-align:left;
+    background: transparent;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 8px 10px;
+    margin-bottom:6px;
+    cursor:pointer;
+    font-family:'Space Grotesk', sans-serif;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .option:hover{ border-color: var(--accent-dim); background: rgba(79,157,222,0.06); }
+  .option .dot{ flex-shrink:0; }
+  .option .label{ flex:1; min-width:0; }
+  .option .brand{ font-size:9.5px; color: var(--text-dim); font-family:'JetBrains Mono',monospace; letter-spacing:0.04em; text-transform:uppercase; }
+  .option .model{ font-size:12.5px; line-height:1.3; margin-top:1px; }
+  .option .weight{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color: var(--text-faint); flex-shrink:0; }
+
+  .option.selected{ border-color: var(--accent); background: rgba(79,157,222,0.10); }
+  .option.selected .weight{ color: var(--accent); }
+  .option.invalid{ border-color: var(--warn); background: var(--warn-bg); }
+  .option.invalid .weight{ color: var(--warn); }
+
+  #reset-btn{
+    width:100%; margin-top:6px; padding:10px;
+    background:transparent; border:1px dashed var(--border);
+    color: var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:10.5px;
+    letter-spacing:0.08em; text-transform:uppercase; border-radius: var(--radius); cursor:pointer;
+  }
+  #reset-btn:hover{ border-color: var(--accent-dim); color: var(--text); }
+
+  /* ---------- Summary bar ---------- */
+  #summary{
+    grid-area: summary;
+    background: var(--panel-solid);
+    border-top: 1px solid var(--border-soft);
+    padding: 14px 24px;
+    z-index: 5;
+  }
+  #summary-top{
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap: wrap; gap: 14px 28px;
+    margin-bottom: 10px;
+  }
+  .status{
+    display:flex; align-items:center; gap:9px;
+    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:0.02em;
+  }
+  .status .pip{ width:8px; height:8px; border-radius:50%; }
+  .status.ok .pip{ background: var(--ok); box-shadow:0 0 8px var(--ok); }
+  .status.warn .pip{ background: var(--warn); box-shadow:0 0 8px var(--warn); }
+  .status.ok .txt{ color: var(--ok); }
+  .status.warn .txt{ color: var(--warn); }
+
+  .weight-total{ font-family:'JetBrains Mono',monospace; font-size:12px; color: var(--text-dim); }
+  .weight-total b{ color: var(--text); font-size:15px; font-weight:700; }
+
+  .rows{
+    display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 10px 18px;
+  }
+  .row{
+    display:flex; align-items:center; gap:8px;
+    border-left: 2px solid var(--border-soft);
+    padding-left: 9px;
+  }
+  .row.warn{ border-left-color: var(--warn); }
+  .row .rlabel{ font-family:'JetBrains Mono',monospace; font-size:9px; color: var(--text-faint); text-transform:uppercase; letter-spacing:0.06em; display:block; }
+  .row .rvalue{ font-size:12.5px; margin-top:1px; }
+  .row.warn .rvalue{ color: var(--warn); }
+  .row .rweight{ margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color: var(--text-faint); }
+
+  #issues{ margin-top: 10px; display:flex; flex-direction:column; gap:5px; }
+  .issue{
+    font-family:'JetBrains Mono',monospace; font-size:11px; color: var(--warn);
+    display:flex; gap:7px; align-items:flex-start; line-height:1.4;
+  }
+  .issue::before{ content:"⚠"; flex-shrink:0; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 880px){
+    #app{
+      grid-template-columns: 1fr;
+      grid-template-rows: 42vh 1fr auto;
+      grid-template-areas: "canvas" "sidebar" "summary";
+    }
+    #sidebar{ border-right:none; border-top:1px solid var(--border-soft); border-bottom:1px solid var(--border-soft); }
+    .rows{ grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <aside id="sidebar">
+    <div class="brand-header">
+      <div class="eyebrow">Atelier // Cadre &amp; transmission</div>
+      <h1>Configurateur de vélo</h1>
+      <p>Choisis un cadre, des roues, puis les composants du groupe transmission. Le vélo et le résumé en bas se mettent à jour en direct — les incompatibilités s'affichent en rouge.</p>
+    </div>
+
+    <div class="legend">
+      <span><i class="dot" style="background:var(--shimano)"></i>Shimano</span>
+      <span><i class="dot" style="background:var(--sram)"></i>SRAM</span>
+      <span><i class="dot" style="background:var(--campy)"></i>Campagnolo</span>
+    </div>
+
+    <div id="categories"></div>
+
+    <button id="reset-btn">↺ Configuration par défaut</button>
+  </aside>
+
+  <div id="canvas-wrap">
+    <canvas id="scene-canvas"></canvas>
+    <div class="crosshair c-tl"></div>
+    <div class="crosshair c-tr"></div>
+    <div class="crosshair c-bl"></div>
+    <div class="crosshair c-br"></div>
+    <div class="hud hud-tl">
+      <div class="title">Vue 3D</div>
+      <div class="sub">rendu schématique — glisser pour orbiter</div>
+    </div>
+    <div class="hud hud-tr mono">
+      <div>SCALE 1:1</div>
+      <div class="sub">GROUPE::TRANSMISSION</div>
+    </div>
+    <div class="orbit-hint">◐ CLIC + GLISSER = ORBITE · MOLETTE = ZOOM</div>
+    <div id="boot-error" class="boot-error">
+      <div class="boot-error-box">
+        <div class="boot-error-title">⚠ Base de données introuvable</div>
+        <p>Le fichier <code>data/parts.json</code> n'a pas pu être chargé.</p>
+        <p>Si tu as ouvert <code>index.html</code> directement depuis ton ordinateur (double-clic), c'est normal : les navigateurs bloquent ce type de chargement en local. Une fois le site déployé (Netlify, GitHub Pages...), ça fonctionnera normalement.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="summary">
+    <div id="summary-top">
+      <div id="status" class="status ok">
+        <span class="pip"></span>
+        <span class="txt">Chargement…</span>
+      </div>
+      <div class="weight-total mono">Poids total configuré &nbsp; <b id="total-weight">—</b></div>
+    </div>
+    <div class="rows" id="rows"></div>
+    <div id="issues"></div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ============================================================
+   BASE DE DONNÉES — chargée depuis data/parts.json
+   Le JSON utilise des noms de champs en français ; on les traduit
+   ici vers la structure interne utilisée par le reste du programme.
+   Pour ajouter des pièces, voir data/parts.json + README.md.
+   ============================================================ */
+let PARTS_DATA = null;
+
+function mapDatabase(raw){
+  return {
+    frame: (raw.cadres || []).map(x => ({
+      id: x.id, brand: x.collection, model: x.nom, weight: x.poids_g, swatch: x.couleur, geom: x.geometrie
+    })),
+    wheels: (raw.roues || []).map(x => ({
+      id: x.id, brand: x.marque, model: x.modele, weight: x.poids_g, swatch: x.couleur, profile: x.profil_mm
+    })),
+    rearDerailleur: (raw.derailleurs_arriere || []).map(x => ({
+      id: x.id, brand: x.marque, model: x.modele, speed: x.vitesses, weight: x.poids_g
+    })),
+    frontDerailleur: (raw.derailleurs_avant || []).map(x => ({
+      id: x.id, brand: x.marque, model: x.modele, speed: x.vitesses, weight: x.poids_g
+    })),
+    cassette: (raw.cassettes || []).map(x => ({
+      id: x.id, brand: x.marque, model: x.modele, speed: x.vitesses, weight: x.poids_g
+    })),
+    crankset: (raw.manivelles || []).map(x => ({
+      id: x.id, brand: x.marque, model: x.modele, chainrings: x.plateaux, weight: x.poids_g
+    })),
+  };
+}
+
+async function loadDatabase(){
+  const res = await fetch('data/parts.json');
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const raw = await res.json();
+  PARTS_DATA = mapDatabase(raw);
+}
+
+const CATEGORY_META = {
+  frame:           { label:'Cadre',               short:'CADRE',      n:'00', desc:'Chaque cadre a sa propre géométrie (empattement, angles, tubes) — pas juste sa couleur.' },
+  wheels:          { label:'Roues',                short:'ROUES',      n:'01' },
+  rearDerailleur:  { label:'Dérailleur arrière',   short:'DÉR. ARR.',  n:'02' },
+  frontDerailleur: { label:'Dérailleur avant',     short:'DÉR. AVT.',  n:'03' },
+  cassette:        { label:'Cassette',             short:'CASSETTE',   n:'04' },
+  crankset:        { label:'Manivelles',           short:'MANIVELLES', n:'05' },
+};
+
+/* Géométries inspirées d'archétypes de vélos de route WorldTour :
+   aéro (tubes profilés, haubans abaissés), grimpeur (tubes fins, léger),
+   endurance (empattement plus long, boîte de direction plus haute),
+   classique (acier, tube horizontal, haubans traditionnels). Toutes les
+   longueurs sont en mètres. */
+const GEOMETRY_PRESETS = {
+  aero: {
+    chainstay:0.405, bbDrop:0.072, reach:0.385, stack:0.560,
+    headAngleDeg:73, headTubeLen:0.15, seatAngleDeg:73.5, seatTubeLen:0.50,
+    seatStayDropFrac:0.58, seatpostExposed:0.12, topTubeStyle:'sloping', flatten:true,
+    tubeR:{ top:0.016, down:0.026, seat:0.017, head:0.020, chainstay:0.012, seatstay:0.009, fork:0.017 },
+  },
+  climb: {
+    chainstay:0.405, bbDrop:0.068, reach:0.383, stack:0.575,
+    headAngleDeg:73.5, headTubeLen:0.14, seatAngleDeg:73.5, seatTubeLen:0.505,
+    seatStayDropFrac:0.85, seatpostExposed:0.13, topTubeStyle:'sloping', flatten:false,
+    tubeR:{ top:0.012, down:0.017, seat:0.012, head:0.015, chainstay:0.010, seatstay:0.008, fork:0.013 },
+  },
+  endurance: {
+    chainstay:0.420, bbDrop:0.075, reach:0.372, stack:0.600,
+    headAngleDeg:72, headTubeLen:0.19, seatAngleDeg:73, seatTubeLen:0.495,
+    seatStayDropFrac:0.95, seatpostExposed:0.14, topTubeStyle:'sloping', flatten:false,
+    tubeR:{ top:0.015, down:0.020, seat:0.015, head:0.018, chainstay:0.013, seatstay:0.011, fork:0.016 },
+  },
+  classic: {
+    chainstay:0.440, bbDrop:0.065, reach:0.365, stack:0.575,
+    headAngleDeg:72, headTubeLen:0.15, seatAngleDeg:73, seatTubeLen:0.50,
+    seatStayDropFrac:1.0, seatpostExposed:0.10, topTubeStyle:'level', flatten:false,
+    tubeR:{ top:0.011, down:0.012, seat:0.011, head:0.013, chainstay:0.009, seatstay:0.008, fork:0.012 },
+  },
+};
+
+/* Calcule les points d'ancrage du cadre à partir d'une géométrie réelle :
+   empattement, drop de boîtier, reach/stack, angles de direction et de selle. */
+function computeGeometryPoints(preset, wheelR){
+  const rearHub = new THREE.Vector3(0, wheelR, 0);
+
+  const bbX = Math.sqrt(Math.max(preset.chainstay*preset.chainstay - preset.bbDrop*preset.bbDrop, 0.0001));
+  const bb = new THREE.Vector3(bbX, wheelR - preset.bbDrop, 0);
+
+  const headTop = new THREE.Vector3(bb.x + preset.reach, bb.y + preset.stack, 0);
+
+  const headAngleRad = preset.headAngleDeg * Math.PI/180;
+  const hdx = preset.headTubeLen * Math.cos(headAngleRad);
+  const hdy = preset.headTubeLen * Math.sin(headAngleRad);
+  const headBottom = new THREE.Vector3(headTop.x + hdx, headTop.y - hdy, 0);
+
+  const dyToWheel = headBottom.y - wheelR;
+  const forkLen = dyToWheel / Math.sin(headAngleRad);
+  const frontHub = new THREE.Vector3(headBottom.x + forkLen*Math.cos(headAngleRad), wheelR, 0);
+
+  const seatAngleRad = preset.seatAngleDeg * Math.PI/180;
+  let seatTubeLen = preset.seatTubeLen;
+  if (preset.topTubeStyle === 'level'){
+    seatTubeLen = (headTop.y - bb.y) / Math.sin(seatAngleRad);
+  }
+  const seatTop = new THREE.Vector3(bb.x - seatTubeLen*Math.cos(seatAngleRad), bb.y + seatTubeLen*Math.sin(seatAngleRad), 0);
+
+  const seatStayAttach = new THREE.Vector3().lerpVectors(bb, seatTop, preset.seatStayDropFrac);
+
+  const seatDir = new THREE.Vector3().subVectors(seatTop, bb).normalize();
+  const saddle = new THREE.Vector3().copy(seatTop).addScaledVector(seatDir, preset.seatpostExposed);
+
+  const barCenter = new THREE.Vector3(headTop.x + 0.12, headTop.y + 0.02, 0);
+
+  const centerX = frontHub.x / 2;
+  [rearHub, frontHub, bb, headTop, headBottom, seatTop, seatStayAttach, saddle, barCenter].forEach(p => { p.x -= centerX; });
+
+  return { rearHub, frontHub, bb, headTop, headBottom, seatTop, seatStayAttach, saddle, barCenter, wheelR };
+}
+
+const BRAND_COLOR = { 'Shimano':'#3fa9f5', 'SRAM':'#e0942c', 'Campagnolo':'#b06bd1', '—':'#6b7280' };
+const BRAND_COLOR_HEX = { 'Shimano':0x3fa9f5, 'SRAM':0xe0942c, 'Campagnolo':0xb06bd1, '—':0x6b7280 };
+
+/* ============================================================
+   ⚙️ RÈGLES DE COMPATIBILITÉ — bloc isolé, remplaçable facilement
+   ============================================================ */
+function computeIssues(sel){
+  const rd = findPart('rearDerailleur', sel.rearDerailleur);
+  const fd = findPart('frontDerailleur', sel.frontDerailleur);
+  const cs = findPart('cassette', sel.cassette);
+  const ck = findPart('crankset', sel.crankset);
+  const issues = [];
+
+  // Règle 1 — mélange de marques entre dérailleurs avant/arrière
+  if (fd.id !== 'fd-none' && fd.brand !== rd.brand) {
+    issues.push({
+      parts: ['rearDerailleur','frontDerailleur'],
+      message: `Mélange de marques : dérailleur arrière ${rd.brand} incompatible avec dérailleur avant ${fd.brand} (tirage de câble différent).`
+    });
+  }
+
+  // Règle 2 — nombre de vitesses cassette vs dérailleur arrière
+  if (rd.speed !== cs.speed) {
+    issues.push({
+      parts: ['rearDerailleur','cassette'],
+      message: `Vitesses différentes : dérailleur arrière ${rd.speed}v ≠ cassette ${cs.speed}v.`
+    });
+  }
+
+  // Règle 3 — manivelles multi-plateaux sans dérailleur avant
+  if (ck.chainrings >= 2 && fd.id === 'fd-none') {
+    issues.push({
+      parts: ['crankset','frontDerailleur'],
+      message: `Manivelles ${ck.chainrings} plateaux : un dérailleur avant est nécessaire.`
+    });
+  }
+
+  // Règle 4 — dérailleur avant monté sur manivelles mono-plateau
+  if (ck.chainrings === 1 && fd.id !== 'fd-none') {
+    issues.push({
+      parts: ['crankset','frontDerailleur'],
+      message: `Dérailleur avant inutile avec des manivelles mono-plateau (1x).`
+    });
+  }
+
+  return issues;
+}
+/* ============================================================ */
+
+function findPart(cat, id){ return PARTS_DATA[cat].find(p => p.id === id); }
+
+let selection = {
+  frame:           'f-aero',
+  wheels:          'w-alu',
+  rearDerailleur:  'shim-105',
+  frontDerailleur: 'shim-105-fd',
+  cassette:        'shim-105-cs',
+  crankset:        'shim-105-crk',
+};
+const DEFAULT_SELECTION = { ...selection };
+
+/* ============================================================
+   UI — panneau gauche
+   ============================================================ */
+const categoriesEl = document.getElementById('categories');
+
+function renderPanel(){
+  categoriesEl.innerHTML = '';
+  Object.keys(PARTS_DATA).forEach(cat => {
+    const meta = CATEGORY_META[cat];
+    const wrap = document.createElement('div');
+    wrap.className = 'category';
+
+    const head = document.createElement('div');
+    head.className = 'category-head';
+    head.innerHTML = `<span class="name">${meta.label}</span><span class="idx mono">${meta.n}</span>`;
+    wrap.appendChild(head);
+
+    if (meta.desc){
+      const desc = document.createElement('div');
+      desc.className = 'category-desc';
+      desc.textContent = meta.desc;
+      wrap.appendChild(desc);
+    }
+
+    PARTS_DATA[cat].forEach(part => {
+      const btn = document.createElement('button');
+      btn.className = 'option';
+      btn.dataset.cat = cat;
+      btn.dataset.id = part.id;
+      const color = part.swatch || BRAND_COLOR[part.brand] || '#6b7280';
+      btn.innerHTML = `
+        <span class="dot" style="background:${color}"></span>
+        <span class="label">
+          <span class="brand">${part.brand}</span>
+          <span class="model">${part.model}</span>
+        </span>
+        <span class="weight mono">${part.weight ? part.weight + 'g' : '—'}</span>
+      `;
+      btn.addEventListener('click', () => {
+        selection[cat] = part.id;
+        update();
+      });
+      wrap.appendChild(btn);
+    });
+
+    categoriesEl.appendChild(wrap);
+  });
+}
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  selection = { ...DEFAULT_SELECTION };
+  update();
+});
+
+/* ============================================================
+   UI — barre résumé
+   ============================================================ */
+const rowsEl = document.getElementById('rows');
+const issuesEl = document.getElementById('issues');
+const statusEl = document.getElementById('status');
+const totalWeightEl = document.getElementById('total-weight');
+
+function renderSummary(issues){
+  const flagged = new Set();
+  issues.forEach(iss => iss.parts.forEach(p => flagged.add(p)));
+
+  let total = 0;
+  rowsEl.innerHTML = '';
+  Object.keys(PARTS_DATA).forEach(cat => {
+    const part = findPart(cat, selection[cat]);
+    total += part.weight || 0;
+    const isWarn = flagged.has(cat);
+    const row = document.createElement('div');
+    row.className = 'row' + (isWarn ? ' warn' : '');
+    row.innerHTML = `
+      <div style="flex:1; min-width:0;">
+        <span class="rlabel">${CATEGORY_META[cat].short}</span>
+        <span class="rvalue">${part.brand !== '—' ? part.brand + ' ' : ''}${part.model}</span>
+      </div>
+      <span class="rweight mono">${part.weight ? part.weight + 'g' : '—'}</span>
+    `;
+    rowsEl.appendChild(row);
+  });
+
+  totalWeightEl.textContent = total.toLocaleString('fr-CH') + ' g';
+
+  if (issues.length === 0){
+    statusEl.className = 'status ok';
+    statusEl.innerHTML = `<span class="pip"></span><span class="txt">Configuration compatible</span>`;
+  } else {
+    statusEl.className = 'status warn';
+    statusEl.innerHTML = `<span class="pip"></span><span class="txt">${issues.length} incompatibilité${issues.length>1?'s':''} détectée${issues.length>1?'s':''}</span>`;
+  }
+
+  issuesEl.innerHTML = '';
+  issues.forEach(iss => {
+    const div = document.createElement('div');
+    div.className = 'issue';
+    div.textContent = iss.message;
+    issuesEl.appendChild(div);
+  });
+
+  // état des boutons du panneau
+  document.querySelectorAll('.option').forEach(btn => {
+    const cat = btn.dataset.cat, id = btn.dataset.id;
+    const isSelected = selection[cat] === id;
+    btn.classList.toggle('selected', isSelected);
+    btn.classList.toggle('invalid', isSelected && flagged.has(cat));
+  });
+
+  return flagged;
+}
+
+/* ============================================================
+   THREE.JS — scène
+   ============================================================ */
+const canvas = document.getElementById('scene-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+
+const target = new THREE.Vector3(0.0, 0.48, 0);
+let theta = 0.7, phi = 1.25, radius = 2.95;
+function updateCamera(){
+  const x = target.x + radius * Math.sin(phi) * Math.sin(theta);
+  const y = target.y + radius * Math.cos(phi);
+  const z = target.z + radius * Math.sin(phi) * Math.cos(theta);
+  camera.position.set(x, y, z);
+  camera.lookAt(target);
+}
+updateCamera();
+
+// lights
+scene.add(new THREE.AmbientLight(0x3b4252, 1.1));
+const key = new THREE.DirectionalLight(0xffffff, 1.1);
+key.position.set(3, 4, 2);
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x4f9dde, 0.5);
+rim.position.set(-3, 2, -2);
+scene.add(rim);
+
+// grid floor (blueprint feel)
+const grid = new THREE.GridHelper(6, 24, 0x2c4e6b, 0x1c2330);
+grid.position.y = 0;
+scene.add(grid);
+
+const bikeRig = new THREE.Group();
+scene.add(bikeRig);
+
+/* ---------- helpers ---------- */
+function mat(colorHex, opts={}){
+  return new THREE.MeshStandardMaterial({ color: colorHex, metalness:0.55, roughness:0.4, ...opts });
+}
+function tube(p1, p2, r, material, segments=8){
+  const dir = new THREE.Vector3().subVectors(p2, p1);
+  const len = dir.length();
+  const geo = new THREE.CylinderGeometry(r, r, len, segments);
+  const meshTube = new THREE.Mesh(geo, material);
+  const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+  meshTube.position.copy(mid);
+  const up = new THREE.Vector3(0,1,0);
+  const dirN = dir.clone().normalize();
+  meshTube.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(up, dirN));
+  return meshTube;
+}
+const V = (x,y,z=0) => new THREE.Vector3(x,y,z);
+
+/* ---------- geometry ---------- */
+const R_WHEEL = 0.335;
+let currentPoints = null; // anchor points of the currently built frame, consumed by drivetrain parts
+
+const frameMat = mat(0x39424f, { metalness:0.7, roughness:0.3 });
+const neutralMat = mat(0x555f6e, { metalness:0.6, roughness:0.4 });
+const tireMat = mat(0x14161b, { metalness:0.1, roughness:0.9 });
+
+function frameAccentMat(hex){
+  const c = new THREE.Color(hex);
+  const em = c.clone().multiplyScalar(0.18);
+  return new THREE.MeshStandardMaterial({ color:c, metalness:0.35, roughness:0.3, emissive:em });
+}
+function frameSecondaryMat(hex){
+  const c = new THREE.Color(hex).lerp(new THREE.Color(0x2a2f38), 0.62);
+  return new THREE.MeshStandardMaterial({ color:c, metalness:0.6, roughness:0.4 });
+}
+
+/* Builds a frame group from real bike geometry (wheelbase, BB drop, head/seat
+   angles, tube diameters) driven by the chosen frame's preset. Returns the
+   group plus the anchor points so the drivetrain parts can attach correctly. */
+function buildFrame(frameItem){
+  const preset = GEOMETRY_PRESETS[frameItem.geom];
+  const pts = computeGeometryPoints(preset, R_WHEEL);
+  const g = new THREE.Group();
+  const accent = frameAccentMat(frameItem.swatch);
+  const secondary = frameSecondaryMat(frameItem.swatch);
+
+  const mkTube = (p1, p2, r, material, flattenable) => {
+    const m = tube(p1, p2, r, material);
+    if (preset.flatten && flattenable) m.scale.set(1, 1, 1.7);
+    return m;
+  };
+
+  // main triangle — the frame's own paint colour
+  g.add(mkTube(pts.seatTop, pts.headTop, preset.tubeR.top, accent, true));       // top tube
+  g.add(mkTube(pts.bb, pts.headBottom, preset.tubeR.down, accent, true));        // down tube
+  g.add(mkTube(pts.bb, pts.seatTop, preset.tubeR.seat, accent, true));           // seat tube
+  g.add(mkTube(pts.headBottom, pts.headTop, preset.tubeR.head, accent, false));  // head tube
+  g.add(mkTube(pts.bb, pts.rearHub, preset.tubeR.chainstay, secondary, false));          // chainstay
+  g.add(mkTube(pts.seatStayAttach, pts.rearHub, preset.tubeR.seatstay, secondary, false));// seatstay
+  g.add(mkTube(pts.headBottom, pts.frontHub, preset.tubeR.fork, secondary, false));       // fork
+
+  // seatpost + saddle
+  g.add(tube(pts.seatTop, pts.saddle, 0.010, neutralMat));
+  const saddleMesh = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.03, 0.09), neutralMat);
+  saddleMesh.position.copy(pts.saddle).add(V(-0.05, 0.015, 0));
+  g.add(saddleMesh);
+
+  // stem + handlebar
+  g.add(tube(pts.headTop, pts.barCenter, 0.010, neutralMat));
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.009,0.34,8), neutralMat);
+  bar.rotation.z = Math.PI/2;
+  bar.position.copy(pts.barCenter);
+  g.add(bar);
+
+  return { group: g, points: pts };
+}
+
+/* Construit une paire de roues à partir de la géométrie du cadre actif.
+   Le profil (profile, en mm) épaissit visuellement la jante — plus une
+   roue est "aéro", plus son profil est haut, moins elle a de rayons. */
+function buildWheels(item, points){
+  const g = new THREE.Group();
+  const rimMat = mat(item.swatch || 0xc9c9c9, { metalness:0.6, roughness:0.32 });
+  const profile = item.profile || 24;
+  const rimTubeR = 0.013 + profile * 0.00055;
+  const spokeCount = profile >= 40 ? 5 : 10;
+
+  [points.rearHub, points.frontHub].forEach(hub => {
+    const wheel = new THREE.Group();
+    const rimMesh = new THREE.Mesh(new THREE.TorusGeometry(R_WHEEL, rimTubeR, 8, 24), rimMat);
+    const tireMesh = new THREE.Mesh(new THREE.TorusGeometry(R_WHEEL, 0.026, 8, 24), tireMat);
+    tireMesh.scale.set(1,1,0.9);
+    wheel.add(tireMesh, rimMesh);
+    const hubMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.06,10), frameMat);
+    hubMesh.rotation.x = Math.PI/2;
+    wheel.add(hubMesh);
+    for (let i=0;i<spokeCount;i++){
+      const a = (i/spokeCount) * Math.PI * 2;
+      const rimPt = V(Math.sin(a)*(R_WHEEL-0.02), Math.cos(a)*(R_WHEEL-0.02), 0);
+      wheel.add(tube(V(0,0,0), rimPt, 0.004, frameMat, 4));
+    }
+    wheel.position.copy(hub);
+    g.add(wheel);
+  });
+
+  return g;
+}
+
+/* ---------- swappable groups ---------- */
+const DRIVE_Z = 0.085;
+
+function colorFor(brand){ return BRAND_COLOR_HEX[brand] ?? 0x6b7280; }
+
+function tintGroup(group, colorHex, incompatible){
+  group.traverse(o => {
+    if (o.isMesh){
+      o.material = o.material.clone();
+      o.material.color.setHex(colorHex);
+      if (incompatible){
+        o.material.emissive.setHex(0xef5b4a);
+        o.material.emissiveIntensity = 0.55;
+      } else {
+        o.material.emissive.setHex(0x000000);
+        o.material.emissiveIntensity = 0;
+      }
+    }
+  });
+}
+
+function buildRearDerailleur(){
+  const P = currentPoints;
+  const g = new THREE.Group();
+  const base = mat(0x999999);
+  const p0 = V(P.rearHub.x - 0.02, P.rearHub.y - 0.05, DRIVE_Z);
+  const p1 = V(P.rearHub.x - 0.03, P.rearHub.y - 0.18, DRIVE_Z);
+  g.add(tube(p0, p1, 0.012, base));
+  const cage = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.09, 0.02), base);
+  cage.position.copy(p1).add(V(0,-0.03,0));
+  g.add(cage);
+  const pulley1 = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,0.012,10), base);
+  pulley1.rotation.x = Math.PI/2;
+  pulley1.position.copy(p1).add(V(0.005,-0.01,0));
+  const pulley2 = pulley1.clone();
+  pulley2.position.copy(p1).add(V(0.005,-0.07,0));
+  g.add(pulley1, pulley2);
+  return g;
+}
+
+function buildFrontDerailleur(visible){
+  const P = currentPoints;
+  const g = new THREE.Group();
+  if (visible){
+    const base = mat(0x999999);
+    const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.02,0.045,0.025), base);
+    clamp.position.set(P.bb.x + 0.02, P.bb.y + 0.15, DRIVE_Z - 0.01);
+    const cage = new THREE.Mesh(new THREE.BoxGeometry(0.008,0.05,0.045), base);
+    cage.position.set(P.bb.x + 0.045, P.bb.y + 0.13, DRIVE_Z + 0.02);
+    g.add(clamp, cage);
+  }
+  g.visible = visible;
+  return g;
+}
+
+function buildCassette(){
+  const P = currentPoints;
+  const g = new THREE.Group();
+  const base = mat(0x999999);
+  for (let i=0;i<6;i++){
+    const r = 0.095 - i*0.011;
+    const disk = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.006, 16), base);
+    disk.rotation.x = Math.PI/2;
+    disk.position.set(P.rearHub.x, P.rearHub.y, DRIVE_Z + 0.01 + i*0.007);
+    g.add(disk);
+  }
+  return g;
+}
+
+function buildCrankset(chainrings){
+  const P = currentPoints;
+  const g = new THREE.Group();
+  const base = mat(0x999999);
+  // crank arms + pedals
+  [0, Math.PI].forEach(angRot => {
+    const armEnd = V(P.bb.x + Math.sin(angRot)*0.17, P.bb.y - Math.cos(angRot)*0.17, DRIVE_Z + 0.03);
+    g.add(tube(V(P.bb.x,P.bb.y,DRIVE_Z+0.03), armEnd, 0.012, base));
+    const pedal = new THREE.Mesh(new THREE.BoxGeometry(0.045,0.012,0.03), mat(0x2b2f38));
+    pedal.position.copy(armEnd);
+    g.add(pedal);
+  });
+  // chainrings
+  const rings = chainrings >= 2 ? [0.115, 0.09] : [0.10];
+  rings.forEach((r,i) => {
+    const disk = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.006, 24), base);
+    disk.rotation.x = Math.PI/2;
+    disk.position.set(P.bb.x, P.bb.y, DRIVE_Z + 0.005 - i*0.012);
+    g.add(disk);
+  });
+  const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.14,10), mat(0x2b2f38));
+  spindle.rotation.x = Math.PI/2;
+  spindle.position.set(P.bb.x, P.bb.y, 0);
+  g.add(spindle);
+  return g;
+}
+
+const activeGroups = {};
+function replaceGroup(cat, newGroup){
+  if (activeGroups[cat]){
+    bikeRig.remove(activeGroups[cat]);
+    activeGroups[cat].traverse(o => { if (o.isMesh){ o.geometry.dispose(); o.material.dispose(); } });
+  }
+  activeGroups[cat] = newGroup;
+  bikeRig.add(newGroup);
+}
+
+/* ============================================================
+   BOUCLE PRINCIPALE
+   ============================================================ */
+function update(){
+  const issues = computeIssues(selection);
+  const flagged = renderSummary(issues);
+
+  const frameItem = findPart('frame', selection.frame);
+  const built = buildFrame(frameItem);
+  replaceGroup('frame', built.group);
+  currentPoints = built.points;
+
+  const wheelItem = findPart('wheels', selection.wheels);
+  replaceGroup('wheels', buildWheels(wheelItem, currentPoints));
+
+  const rd = findPart('rearDerailleur', selection.rearDerailleur);
+  const fd = findPart('frontDerailleur', selection.frontDerailleur);
+  const cs = findPart('cassette', selection.cassette);
+  const ck = findPart('crankset', selection.crankset);
+
+  replaceGroup('rearDerailleur', buildRearDerailleur());
+  replaceGroup('frontDerailleur', buildFrontDerailleur(fd.id !== 'fd-none'));
+  replaceGroup('cassette', buildCassette());
+  replaceGroup('crankset', buildCrankset(ck.chainrings));
+
+  tintGroup(activeGroups.rearDerailleur, colorFor(rd.brand), flagged.has('rearDerailleur'));
+  tintGroup(activeGroups.frontDerailleur, colorFor(fd.brand), flagged.has('frontDerailleur'));
+  tintGroup(activeGroups.cassette, colorFor(cs.brand), flagged.has('cassette'));
+  tintGroup(activeGroups.crankset, colorFor(ck.brand), flagged.has('crankset'));
+}
+
+/* ============================================================
+   ORBITE CAMÉRA (drag manuel, sans dépendance externe)
+   ============================================================ */
+let isDragging = false, lastX = 0, lastY = 0, idleT = 0;
+canvas.addEventListener('pointerdown', e => { isDragging = true; lastX = e.clientX; lastY = e.clientY; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointerup', () => isDragging = false);
+canvas.addEventListener('pointercancel', () => isDragging = false);
+canvas.addEventListener('pointermove', e => {
+  if (!isDragging) return;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  theta -= dx * 0.006;
+  phi = Math.min(Math.max(phi - dy * 0.006, 0.35), Math.PI - 0.35);
+  updateCamera();
+});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  radius = Math.min(Math.max(radius + e.deltaY * 0.0016, 1.4), 5.5);
+  updateCamera();
+}, { passive:false });
+
+function resize(){
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+
+function animate(){
+  requestAnimationFrame(animate);
+  if (!isDragging){
+    idleT += 0.0016;
+    theta += 0.0011;
+    updateCamera();
+  }
+  renderer.render(scene, camera);
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+async function init(){
+  try {
+    await loadDatabase();
+    renderPanel();
+    update();
+    resize();
+    animate();
+  } catch (err) {
+    document.getElementById('boot-error').style.display = 'flex';
+    console.error('Impossible de charger data/parts.json :', err);
+  }
+}
+init();
+</script>
+</body>
+</html>
