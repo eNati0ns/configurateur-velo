@@ -271,6 +271,25 @@
   .geom-label{ color: var(--text-dim); white-space:nowrap; }
   .geom-value{ font-family:'JetBrains Mono',monospace; text-align:right; color: var(--text); }
   .geom-unit{ color: var(--text-faint); font-size:10px; width:26px; }
+
+  /* ---------- Cockpit : éditeur de potence ---------- */
+  .stem-editor{ display:flex; flex-direction:column; gap:7px; margin-top:2px; }
+  .stem-row{ display:flex; align-items:center; gap:8px; }
+  .stem-row label{ flex:1; font-size:12px; color: var(--text-dim); }
+  .stem-row input{
+    width:64px; background: var(--bg-2); border:1px solid var(--border-soft); color: var(--text);
+    font-family:'JetBrains Mono',monospace; font-size:12px; text-align:right;
+    border-radius: var(--radius); padding:5px 7px;
+  }
+  .stem-row input:focus{ outline:none; border-color: var(--accent); }
+  .stem-row input.changed{ border-color:#e8912f; color:#e8912f; }
+  .stem-row .stem-unit{ width:20px; font-size:10px; color: var(--text-faint); }
+  #stem-apply{
+    margin-top:4px; padding:9px 12px; border-radius: var(--radius); cursor:pointer;
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase;
+    background:transparent; border:1px solid var(--border); color: var(--text-faint);
+  }
+  #stem-apply.pending{ background:#e8912f; border-color:#e8912f; color:#141414; font-weight:600; }
   /* en-tête de groupe dans le tableau (Entrées / Valeurs dérivées) */
   tr.geom-group td{
     padding-top:9px; padding-bottom:4px;
@@ -589,6 +608,21 @@ let selection = {
 const DEFAULT_SELECTION = { ...selection };
 
 /* ============================================================
+   COCKPIT — potence paramétrable (composant unique éditable)
+   Valeurs standard route ; l'utilisateur les modifie dans le tableau puis
+   applique. stemDraft = tableau en cours ; stemApplied = valeurs en 3D.
+   ============================================================ */
+const STEM_STANDARD = { length_mm:100, angle_deg:8, steerer_mm:28.6, bar_clamp_mm:31.8 };
+const STEM_FIELDS = [
+  { key:'length_mm',    label:'Longueur',          unit:'mm' },
+  { key:'angle_deg',    label:'Angle',             unit:'°'  },
+  { key:'steerer_mm',   label:'⌀ Tube de fourche', unit:'mm' },
+  { key:'bar_clamp_mm', label:'⌀ Cintre',          unit:'mm' },
+];
+let stemDraft   = { ...STEM_STANDARD };
+let stemApplied = { ...STEM_STANDARD };
+
+/* ============================================================
    UI — panneau gauche
    ============================================================ */
 let framesetOnly = true;
@@ -647,6 +681,58 @@ function renderPanel(){
 
     categoriesEl.appendChild(wrap);
   });
+
+  // Cockpit (potence) — uniquement en vélo complet, pas en frameset only
+  if (!framesetOnly) renderCockpit();
+}
+
+/* ============================================================
+   COCKPIT — rendu du tableau éditable de la potence
+   ============================================================ */
+function renderCockpit(){
+  const std = STEM_STANDARD;
+  const wrap = document.createElement('div');
+  wrap.className = 'category';
+  wrap.innerHTML = `
+    <div class="category-head"><span class="name">Cockpit</span><span class="idx mono">06</span></div>
+    <div class="category-desc">Potence — standard route ${std.length_mm} mm · +${std.angle_deg}° · steerer ${std.steerer_mm} / cintre ${std.bar_clamp_mm} mm. Modifie une valeur puis applique.</div>`;
+  const editor = document.createElement('div');
+  editor.className = 'stem-editor';
+  editor.innerHTML = STEM_FIELDS.map(f => `
+    <div class="stem-row">
+      <label for="stem-${f.key}">${f.label}</label>
+      <input id="stem-${f.key}" type="number" step="0.1" value="${stemDraft[f.key]}" data-key="${f.key}">
+      <span class="stem-unit">${f.unit}</span>
+    </div>`).join('') + `<button id="stem-apply">Appliquer à la 3D</button>`;
+  wrap.appendChild(editor);
+  categoriesEl.appendChild(wrap);
+
+  editor.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const v = parseFloat(inp.value);
+      if (!isNaN(v)) stemDraft[inp.dataset.key] = v;
+      refreshStemEditorState();
+    });
+  });
+  editor.querySelector('#stem-apply').addEventListener('click', () => {
+    stemApplied = { ...stemDraft };
+    update();
+    refreshStemEditorState();
+  });
+  refreshStemEditorState();
+}
+
+function refreshStemEditorState(){
+  STEM_FIELDS.forEach(f => {
+    const inp = document.getElementById('stem-' + f.key);
+    if (inp) inp.classList.toggle('changed', Number(stemDraft[f.key]) !== Number(STEM_STANDARD[f.key]));
+  });
+  const btn = document.getElementById('stem-apply');
+  if (btn){
+    const pending = STEM_FIELDS.some(f => Number(stemDraft[f.key]) !== Number(stemApplied[f.key]));
+    btn.classList.toggle('pending', pending);
+    btn.textContent = pending ? 'Appliquer à la 3D' : 'Appliqué';
+  }
 }
 
 /* ============================================================
@@ -930,6 +1016,49 @@ function buildFrame(frameItem){
   return { group: g, points: pts };
 }
 
+/* Potence (cockpit) — composant paramétrable. Se serre sur le pivot de
+   fourche (steerer) juste au-dessus du tube de direction, part vers l'avant
+   selon l'angle de potence, jusqu'au collier de cintre. On dessine le corps
+   + les deux colliers ; le cintre lui-même est un composant à venir. */
+const STEM_COLOR = 0x2e323b; // noir cockpit
+const stemMat = mat(STEM_COLOR, { metalness:0.5, roughness:0.4 });
+
+function buildStem(P, stem){
+  const g = new THREE.Group();
+  // axe du pivot de fourche = du bas vers le haut du tube de direction
+  const axisUp = new THREE.Vector3().subVectors(P.headTop, P.headBottom).normalize();
+  // perpendiculaire dans le plan, vers l'avant (potence à 0°)
+  const perpFwd = V(axisUp.y, -axisUp.x, 0);
+  const th = (stem.angle_deg || 0) * Math.PI/180; // + = vers le haut
+  const stemDir = V(
+    perpFwd.x*Math.cos(th) - perpFwd.y*Math.sin(th),
+    perpFwd.x*Math.sin(th) + perpFwd.y*Math.cos(th), 0
+  ).normalize();
+
+  const spacer = 0.02; // petit empilement au-dessus du tube de direction
+  const p0 = new THREE.Vector3().copy(P.headTop).addScaledVector(axisUp, spacer);   // collier steerer
+  const len = (stem.length_mm || 100) / 1000;
+  const p1 = new THREE.Vector3().copy(p0).addScaledVector(stemDir, len);            // collier cintre
+
+  g.add(tube(p0, p1, 0.013, stemMat)); // corps de potence
+
+  // collier steerer (autour du pivot, axe = axisUp)
+  const steererR = (stem.steerer_mm || 28.6)/2000 + 0.004;
+  const sc = new THREE.Mesh(new THREE.CylinderGeometry(steererR, steererR, 0.032, 16), stemMat);
+  sc.quaternion.setFromUnitVectors(V(0,1,0), axisUp);
+  sc.position.copy(p0);
+  g.add(sc);
+
+  // collier cintre (axe = Z, le cintre passera gauche-droite)
+  const barR = (stem.bar_clamp_mm || 31.8)/2000 + 0.003;
+  const bc = new THREE.Mesh(new THREE.CylinderGeometry(barR, barR, 0.042, 16), stemMat);
+  bc.rotation.x = Math.PI/2;
+  bc.position.copy(p1);
+  g.add(bc);
+
+  return g;
+}
+
 /* Construit une paire de roues à partir de la géométrie du cadre actif.
    Le profil (profile, en mm) épaissit visuellement la jante — plus une
    roue est "aéro", plus son profil est haut, moins elle a de rayons. */
@@ -1122,10 +1251,12 @@ function update(){
   currentPoints = built.points;
 
   if (framesetOnly){
-    ['wheels','rearDerailleur','frontDerailleur','cassette','crankset'].forEach(clearGroup);
+    ['wheels','rearDerailleur','frontDerailleur','cassette','crankset','stem'].forEach(clearGroup);
   } else {
     const wheelItem = findPart('wheels', selection.wheels);
     replaceGroup('wheels', buildWheels(wheelItem, currentPoints));
+
+    replaceGroup('stem', buildStem(currentPoints, stemApplied));
 
     const rd = findPart('rearDerailleur', selection.rearDerailleur);
     const fd = findPart('frontDerailleur', selection.frontDerailleur);
