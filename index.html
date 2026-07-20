@@ -625,17 +625,22 @@ function renderPanel(){
    ============================================================ */
 let frameModelInputEl = null, frameSizeSelectEl = null, frameMetaEl = null;
 
+function frameModelLabel(part){
+  return part.brand && part.brand !== '—' ? `${part.brand} ${part.model}` : part.model;
+}
+
 function frameModelGroups(){
   const groups = {};
   PARTS_DATA.frame.forEach(p => {
-    (groups[p.model] = groups[p.model] || []).push(p);
+    const label = frameModelLabel(p);
+    (groups[label] = groups[label] || []).push(p);
   });
   return groups;
 }
 
-function populateFrameSizes(modelName, preferId){
+function populateFrameSizes(modelLabel, preferId){
   const groups = frameModelGroups();
-  const list = groups[modelName] || [];
+  const list = groups[modelLabel] || [];
   frameSizeSelectEl.innerHTML = list.map(p => `<option value="${p.id}">${p.taille}</option>`).join('');
   frameSizeSelectEl.disabled = list.length === 0;
   const target = list.find(p => p.id === preferId) || list[0];
@@ -646,15 +651,15 @@ function populateFrameSizes(modelName, preferId){
 function syncFramePickerUI(){
   if (!frameModelInputEl) return;
   const part = findPart('frame', selection.frame);
-  frameModelInputEl.value = part.model;
-  populateFrameSizes(part.model, part.id);
+  frameModelInputEl.value = frameModelLabel(part);
+  populateFrameSizes(frameModelLabel(part), part.id);
   const color = part.swatch || '#6b7280';
   frameMetaEl.innerHTML = `<span class="dot" style="background:${color}"></span><span>${part.weight ? part.weight + ' g' : '—'}</span>`;
 }
 
 function renderFramePicker(wrap){
   const groups = frameModelGroups();
-  const modelNames = Object.keys(groups);
+  const modelLabels = Object.keys(groups).sort();
   const current = findPart('frame', selection.frame);
 
   const picker = document.createElement('div');
@@ -662,8 +667,8 @@ function renderFramePicker(wrap){
   picker.innerHTML = `
     <div>
       <label class="field-label" for="frame-model-input">Modèle</label>
-      <input type="text" id="frame-model-input" list="frame-model-list" placeholder="Rechercher un cadre…" autocomplete="off" value="${current.model}">
-      <datalist id="frame-model-list">${modelNames.map(n => `<option value="${n}">`).join('')}</datalist>
+      <input type="text" id="frame-model-input" list="frame-model-list" placeholder="Rechercher un cadre…" autocomplete="off" value="${frameModelLabel(current)}">
+      <datalist id="frame-model-list">${modelLabels.map(n => `<option value="${n}">`).join('')}</datalist>
     </div>
     <div>
       <label class="field-label" for="frame-size-select">Taille</label>
