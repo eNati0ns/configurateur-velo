@@ -1014,15 +1014,19 @@ function buildHandlebar(P, stem, hbar){
   // drop finissant tournée vers le pilote. L'écart hwt→hwb crée le flare.
   // Fractions (u = fraction de reach, v = fraction de drop) tracées sur la
   // vue de côté du blueprint.
+  // « J couché » : tops en haut, courbe qui descend à l'avant, puis un bas
+  // DROIT et HORIZONTAL (parallèle au sol) qui repart vers l'arrière et se
+  // termine à l'aplomb du collier — aucun crochet qui remonte. Les 3 derniers
+  // points à v = -1 garantissent un segment de bas parfaitement plat.
   const PROFILE = [
     [0.00,  0.00],  // collier / départ des tops
-    [0.55, -0.05],  // ramp vers les cocottes
-    [1.00, -0.18],  // cocottes = point le plus avancé
-    [1.00, -0.52],  // avant du drop, ça descend
-    [0.76, -0.90],  // arc avant-bas
-    [0.42, -1.00],  // point le plus bas
-    [0.14, -0.94],  // remontée arrière douce
-    [0.00, -0.82],  // queue du drop, tournée vers le pilote
+    [0.55, -0.06],  // ramp vers les cocottes
+    [1.00, -0.20],  // cocottes = point le plus avancé (reach)
+    [0.98, -0.55],  // avant du drop, ça descend
+    [0.88, -0.90],  // arrondi avant-bas
+    [0.70, -1.00],  // arrivée sur le plat (avant du bas)
+    [0.35, -1.00],  // plat du bas — parallèle au sol
+    [0.00, -1.00],  // fin du drop, à l'aplomb du collier (horizontal)
   ];
   [1, -1].forEach(side => {
     const zt = side*hwt, zb = side*hwb;
