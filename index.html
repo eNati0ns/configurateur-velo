@@ -565,6 +565,34 @@ let hbarDraft   = { ...HBAR_STANDARD };
 let hbarApplied = { ...HBAR_STANDARD };
 
 /* ============================================================
+   ROUE — jante (vraies valeurs), taille de roue, pneu (par-dessus)
+   Rayon de roulement = rayon jante (ISO/2) + hauteur de pneu.
+   ============================================================ */
+const RIM_STANDARD = { rim_internal_mm:21, rim_external_mm:28, rim_depth_mm:40, spokes_count:24 };
+const RIM_FIELDS = [
+  { key:'rim_internal_mm', label:'Rim internal', unit:'mm' },
+  { key:'rim_external_mm', label:'Rim external', unit:'mm' },
+  { key:'rim_depth_mm',    label:'Rim depth',    unit:'mm' },
+  { key:'spokes_count',    label:'Spokes',       unit:''   },
+];
+let rimDraft   = { ...RIM_STANDARD };
+let rimApplied = { ...RIM_STANDARD };
+
+const TIRE_STANDARD = { width_mm:28 };
+const TIRE_FIELDS = [ { key:'width_mm', label:'Largeur pneu', unit:'mm' } ];
+let tireDraft   = { ...TIRE_STANDARD };
+let tireApplied = { ...TIRE_STANDARD };
+
+const WHEEL_SIZES = [
+  { id:'700c', label:'700C', iso_mm:622 },
+  { id:'650b', label:'650B', iso_mm:584 },
+];
+let wheelSize = '700c'; // appliqué en direct
+function wheelISOmm(){ return (WHEEL_SIZES.find(w => w.id === wheelSize) || WHEEL_SIZES[0]).iso_mm; }
+/* rayon de roulement (m) : bord de jante (ISO/2) + hauteur de pneu ≈ largeur */
+function wheelRadiusM(){ return (wheelISOmm()/2 + (tireApplied.width_mm || 0)) / 1000; }
+
+/* ============================================================
    UI — panneau gauche (accordéon repliable, tout replié par défaut)
    ============================================================ */
 const categoriesEl = document.getElementById('categories');
@@ -628,6 +656,36 @@ function renderPanel(){
     draft:hbarDraft, applied:hbarApplied,
     apply:() => Object.assign(hbarApplied, hbarDraft),
   });
+
+  // ---- Roue ----
+  const roue = collapsible(categoriesEl, { title:'Roue', idx:'02', level:'cat' });
+  const janteBody = collapsible(roue, { title:'Jante', swatch:RIM_SWATCH, level:'sub' });
+  renderParamEditor(janteBody, {
+    idPrefix:'rim', fields:RIM_FIELDS, standard:RIM_STANDARD,
+    draft:rimDraft, applied:rimApplied,
+    apply:() => Object.assign(rimApplied, rimDraft),
+  });
+  const sizeBody = collapsible(roue, { title:'Wheel size', level:'sub' });
+  renderWheelSize(sizeBody);
+  const tireBody = collapsible(roue, { title:'Pneu', swatch:TIRE_SWATCH, level:'sub' });
+  renderParamEditor(tireBody, {
+    idPrefix:'tire', fields:TIRE_FIELDS, standard:TIRE_STANDARD,
+    draft:tireDraft, applied:tireApplied,
+    apply:() => Object.assign(tireApplied, tireDraft),
+  });
+}
+
+/* Taille de roue — menu de standards, appliqué en direct. */
+function renderWheelSize(parent){
+  const pick = document.createElement('div');
+  pick.className = 'frame-picker';
+  pick.innerHTML = `<select id="wheelsize-select">${
+    WHEEL_SIZES.map(w => `<option value="${w.id}">${w.label} — ${w.iso_mm} mm</option>`).join('')
+  }</select>`;
+  parent.appendChild(pick);
+  const sel = pick.querySelector('#wheelsize-select');
+  sel.value = wheelSize;
+  sel.addEventListener('change', () => { wheelSize = sel.value; update(); });
 }
 
 /* Éditeur paramétrable générique : rend les champs + bouton Appliquer dans
@@ -757,6 +815,11 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   Object.assign(hbarApplied, HBAR_STANDARD);
   Object.assign(seatpostDraft, SEATPOST_STANDARD);
   Object.assign(seatpostApplied, SEATPOST_STANDARD);
+  Object.assign(rimDraft, RIM_STANDARD);
+  Object.assign(rimApplied, RIM_STANDARD);
+  Object.assign(tireDraft, TIRE_STANDARD);
+  Object.assign(tireApplied, TIRE_STANDARD);
+  wheelSize = '700c';
   renderPanel();
   update();
 });
@@ -834,7 +897,7 @@ function tube(p1, p2, r, material, segments=8){
 const V = (x,y,z=0) => new THREE.Vector3(x,y,z);
 
 /* ---------- geometry ---------- */
-const R_WHEEL = 0.335;         // rayon de roue de référence (positionne le BB / les moyeux)
+let R_WHEEL = 0.335;           // rayon de roulement (m), recalculé selon roue + pneu
 let currentPoints = null;      // points d'ancrage du cadre courant, consommés par la potence
 
 /* Couleurs fixes, identiques pour tous les cadres : cadre blanc, fourche
@@ -932,6 +995,58 @@ function buildSeatpost(P, lenMm){
   const bottom = new THREE.Vector3().copy(P.bb).addScaledVector(seatDir, junctionDist - insertion);
   const top    = new THREE.Vector3().copy(P.bb).addScaledVector(seatDir, topDist);
   g.add(tube(bottom, top, 0.0136, seatpostMat));              // ⌀ 27,2 mm
+  return g;
+}
+
+/* ---------- Roues ---------- */
+const RIM_SWATCH  = '#8b93a1';
+const TIRE_SWATCH = '#141417';
+const rimMat   = mat(0x3a3f48, { metalness:0.7,  roughness:0.32 });
+const tireMat  = mat(0x121417, { metalness:0.05, roughness:0.9  });
+const spokeMat = mat(0x9aa0aa, { metalness:0.6,  roughness:0.35 });
+const wheelHubMat = mat(0x50555e, { metalness:0.65, roughness:0.4 });
+
+/* Construit les deux roues aux moyeux du cadre. Vraies valeurs de jante :
+   bord de jante au rayon ISO/2 (bead seat), profondeur vers l'intérieur ;
+   le pneu se pose PAR-DESSUS (de ISO/2 jusqu'au rayon de roulement R). */
+function buildWheels(P, rim, tireW, R){
+  const g = new THREE.Group();
+  const seatR = wheelISOmm() / 2000;                 // rayon bord de jante (m)
+  const depth = Math.max((rim.rim_depth_mm || 40), 5) / 1000;
+  const extW  = Math.max((rim.rim_external_mm || 28), 8) / 1000;
+  const tW    = Math.max((tireW || 28), 18) / 1000;
+  const spokes = Math.max(8, Math.round(rim.spokes_count || 24));
+  const rimMid = seatR - depth / 2;                  // centre radial de la jante
+
+  [P.rearHub, P.frontHub].forEach(hub => {
+    const wheel = new THREE.Group();
+
+    // jante : tore de section (profondeur × largeur externe)
+    const rimTube = depth / 2;
+    const rimMesh = new THREE.Mesh(new THREE.TorusGeometry(rimMid, rimTube, 14, 56), rimMat);
+    rimMesh.scale.z = extW / depth;                  // largeur axiale = rim external
+    wheel.add(rimMesh);
+
+    // pneu : tore rond posé sur la jante (ISO/2 -> R)
+    const tireMesh = new THREE.Mesh(new THREE.TorusGeometry(seatR + tW / 2, tW / 2, 14, 56), tireMat);
+    wheel.add(tireMesh);
+
+    // moyeu
+    const hubMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.052, 16), wheelHubMat);
+    hubMesh.rotation.x = Math.PI / 2;
+    wheel.add(hubMesh);
+
+    // rayons — du moyeu au fond de jante, alternés gauche/droite
+    for (let i = 0; i < spokes; i++){
+      const a = (i / spokes) * Math.PI * 2;
+      const z = (i % 2 === 0 ? 1 : -1) * extW * 0.32;
+      const rimPt = V(Math.cos(a) * (seatR - depth), Math.sin(a) * (seatR - depth), 0);
+      wheel.add(tube(V(0, 0, z), rimPt, 0.0017, spokeMat, 4));
+    }
+
+    wheel.position.copy(hub);
+    g.add(wheel);
+  });
   return g;
 }
 
@@ -1099,12 +1214,18 @@ function renderGeometryPanel(frameItem){
 function update(){
   syncFramePickerUI();
 
+  // rayon de roulement recalculé (jante ISO + pneu par-dessus)
+  R_WHEEL = wheelRadiusM();
+
   const frameItem = findPart('frame', selection.frame);
   if (geomDrawerOpen) renderGeometryPanel(frameItem);
 
   const built = buildFrame(frameItem);
   replaceGroup('frame', built.group);
   currentPoints = built.points;
+
+  // roues aux moyeux
+  replaceGroup('wheels', buildWheels(currentPoints, rimApplied, tireApplied.width_mm, R_WHEEL));
 
   // tige de selle (coulisse dans le seat tube du cadre)
   replaceGroup('seatpost', buildSeatpost(currentPoints, seatpostApplied.length_mm));
