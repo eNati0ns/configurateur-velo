@@ -529,6 +529,15 @@ let selection = {
 const DEFAULT_SELECTION = { ...selection };
 
 /* ============================================================
+   CADRE — tube de selle paramétrable (longueur depuis le BB)
+   Couleur distincte (violet), ⌀ 27,2 mm (standard seatpost marché).
+   ============================================================ */
+const SEATTUBE_STANDARD = { length_mm: 730 };
+const SEATTUBE_FIELDS = [ { key:'length_mm', label:'Longueur (BB)', unit:'mm' } ];
+let seatTubeDraft   = { ...SEATTUBE_STANDARD };
+let seatTubeApplied = { ...SEATTUBE_STANDARD };
+
+/* ============================================================
    COCKPIT — potence paramétrable (composant unique éditable)
    Valeurs standard route ; l'utilisateur les modifie dans le tableau puis
    applique. stemDraft = tableau en cours ; stemApplied = valeurs en 3D.
@@ -585,7 +594,14 @@ function renderPanel(){
       wrap.appendChild(desc);
     }
 
-    if (cat === 'frame') renderFramePicker(wrap);
+    if (cat === 'frame'){
+      renderFramePicker(wrap);
+      renderParamEditor(wrap, {
+        title:'Tube de selle', swatch:SEATTUBE_SWATCH, idPrefix:'seattube',
+        fields:SEATTUBE_FIELDS, standard:SEATTUBE_STANDARD, draft:seatTubeDraft, applied:seatTubeApplied,
+        apply:() => Object.assign(seatTubeApplied, seatTubeDraft),
+      });
+    }
 
     categoriesEl.appendChild(wrap);
   });
@@ -635,12 +651,14 @@ function renderParamEditor(parent, o){
   sub.appendChild(editor);
   parent.appendChild(sub);
 
+  // On cherche dans `editor` (référence en mémoire) plutôt que dans le
+  // document : robuste même si `parent` n'est pas encore attaché au DOM.
   const refresh = () => {
     o.fields.forEach(f => {
-      const inp = document.getElementById(`${o.idPrefix}-${f.key}`);
+      const inp = editor.querySelector(`input[data-key="${f.key}"]`);
       if (inp) inp.classList.toggle('changed', Number(o.draft[f.key]) !== Number(o.standard[f.key]));
     });
-    const btn = document.getElementById(`${o.idPrefix}-apply`);
+    const btn = editor.querySelector('.param-apply');
     const pending = o.fields.some(f => Number(o.draft[f.key]) !== Number(o.applied[f.key]));
     btn.classList.toggle('pending', pending);
     btn.textContent = pending ? 'Appliquer à la 3D' : 'Appliqué';
@@ -746,6 +764,8 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   Object.assign(stemApplied, STEM_STANDARD);
   Object.assign(hbarDraft, HBAR_STANDARD);
   Object.assign(hbarApplied, HBAR_STANDARD);
+  Object.assign(seatTubeDraft, SEATTUBE_STANDARD);
+  Object.assign(seatTubeApplied, SEATTUBE_STANDARD);
   renderPanel();
   update();
 });
@@ -770,6 +790,16 @@ function renderSummary(){
     </div>
     <span class="rweight mono">${frame.weight ? frame.weight + 'g' : '—'}</span>`;
   rowsEl.appendChild(frameRow);
+
+  const seatRow = document.createElement('div');
+  seatRow.className = 'row';
+  seatRow.innerHTML = `
+    <div style="flex:1; min-width:0;">
+      <span class="rlabel">TUBE DE SELLE</span>
+      <span class="rvalue">${seatTubeApplied.length_mm} mm depuis le BB · ⌀ 27,2</span>
+    </div>
+    <span class="rweight mono">—</span>`;
+  rowsEl.appendChild(seatRow);
 
   const stemRow = document.createElement('div');
   stemRow.className = 'row';
@@ -859,10 +889,13 @@ let currentPoints = null;      // points d'ancrage du cadre courant, consommés 
 
 /* Couleurs fixes, identiques pour tous les cadres : cadre blanc, fourche
    gris prononcé. On ignore volontairement le champ couleur des données. */
-const FRAME_COLOR = 0xf2f2f2;   // blanc (le blanc pur masquerait l'ombrage)
-const FORK_COLOR  = 0x4a4a4a;   // gris foncé
-const frameTubeMat = mat(FRAME_COLOR, { metalness:0.25, roughness:0.45 });
-const forkTubeMat  = mat(FORK_COLOR,  { metalness:0.45, roughness:0.40 });
+const FRAME_COLOR    = 0xf2f2f2;   // blanc (le blanc pur masquerait l'ombrage)
+const FORK_COLOR     = 0x4a4a4a;   // gris foncé
+const SEATTUBE_COLOR = 0xb06bd1;   // tube de selle : violet (couleur distincte)
+const SEATTUBE_SWATCH = '#b06bd1';
+const frameTubeMat = mat(FRAME_COLOR,    { metalness:0.25, roughness:0.45 });
+const forkTubeMat  = mat(FORK_COLOR,     { metalness:0.45, roughness:0.40 });
+const seatTubeMat  = mat(SEATTUBE_COLOR, { metalness:0.35, roughness:0.40 });
 
 /* Rayons de tube (mètres), calés sur des diamètres réels de vélo route à
    l'échelle de la roue 700C, identiques pour TOUS les cadres. Hiérarchie :
@@ -896,7 +929,7 @@ function addTubePair(g, a, b, zA, zB, r, material){
    Triangle principal en tube unique (plan central) ; bases, haubans et
    fourche en paires qui enjambent la roue. Triangle en blanc, fourche en
    gris prononcé. Ne dessine pas potence/cintre/selle (composants séparés). */
-function buildFrame(frameItem){
+function buildFrame(frameItem, seatTubeLenMm){
   const pts = computeGeometryPoints(frameItem, R_WHEEL);
   const r = DEFAULT_TUBE_R;
   const g = new THREE.Group();
@@ -904,8 +937,15 @@ function buildFrame(frameItem){
   // triangle principal — tubes uniques dans le plan central
   g.add(tube(pts.seatTop, pts.headTop, r.top, frameTubeMat));        // tube supérieur
   g.add(tube(pts.bb, pts.headBottom, r.down, frameTubeMat));         // tube diagonal
-  g.add(tube(pts.bb, pts.seatTop, r.seat, frameTubeMat));            // tube de selle
   g.add(tube(pts.headBottom, pts.headTop, r.head, frameTubeMat));    // tube de direction
+
+  // tube de selle — couleur distincte (violet), ⌀ 27,2 mm (standard seatpost),
+  // tracé du BB le long de l'axe de selle sur la longueur demandée (depuis le
+  // BB). Dépasse au-dessus de la jonction du tube supérieur comme une tige.
+  const seatDir = new THREE.Vector3().subVectors(pts.seatTop, pts.bb).normalize();
+  const seatLen = Math.max((seatTubeLenMm || 0) / 1000, 0.001);
+  const seatTubeTop = new THREE.Vector3().copy(pts.bb).addScaledVector(seatDir, seatLen);
+  g.add(tube(pts.bb, seatTubeTop, 0.0136, seatTubeMat));            // ⌀ 27,2 mm
 
   // boîtier de pédalier BSA (route) : coquille filetée 68 mm de large,
   // ⌀ ~40 mm, axe aligné sur l'axe de pédalier (Z). Remplit la jonction
@@ -1099,7 +1139,7 @@ function update(){
   const frameItem = findPart('frame', selection.frame);
   renderGeometryPanel(frameItem);
 
-  const built = buildFrame(frameItem);
+  const built = buildFrame(frameItem, seatTubeApplied.length_mm);
   replaceGroup('frame', built.group);
   currentPoints = built.points;
 
