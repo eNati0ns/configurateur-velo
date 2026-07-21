@@ -593,6 +593,27 @@ function wheelISOmm(){ return (WHEEL_SIZES.find(w => w.id === wheelSize) || WHEE
 function wheelRadiusM(){ return (wheelISOmm()/2 + (tireApplied.width_mm || 0)) / 1000; }
 
 /* ============================================================
+   SELLE — 3 formes de référence (longueur × largeur), rails, av/arrière.
+   Montée par les rails sur le sommet de la tige de selle (point de contact).
+   ============================================================ */
+const SADDLE_SHAPES = [
+  { id:'flat',  label:'Plate / longue (Arione)',  length_mm:300, width_mm:132 },
+  { id:'semi',  label:'Semi-ronde (Antares)',     length_mm:274, width_mm:142 },
+  { id:'short', label:'Nez court (S-Works Power)', length_mm:240, width_mm:143 },
+];
+const SADDLE_FIELDS = [
+  { key:'length_mm',  label:'Longueur', unit:'mm' },
+  { key:'width_mm',   label:'Largeur',  unit:'mm' },
+  { key:'foreaft_mm', label:'Av / Ar',  unit:'mm' }, // + = avancer (vers l'avant)
+];
+let saddleShape = 'semi';
+const _saddleRef = SADDLE_SHAPES.find(s => s.id === saddleShape);
+let saddleStandard = { length_mm:_saddleRef.length_mm, width_mm:_saddleRef.width_mm, foreaft_mm:0 };
+let saddleDraft    = { ...saddleStandard };
+let saddleApplied  = { ...saddleStandard };
+let saddleRefresh  = null; // callback pour rafraîchir l'éditeur depuis le sélecteur de forme
+
+/* ============================================================
    UI — panneau gauche (accordéon repliable, tout replié par défaut)
    ============================================================ */
 const categoriesEl = document.getElementById('categories');
@@ -673,6 +694,15 @@ function renderPanel(){
     draft:tireDraft, applied:tireApplied,
     apply:() => Object.assign(tireApplied, tireDraft),
   });
+
+  // ---- Selle ----
+  const selle = collapsible(categoriesEl, { title:'Selle', idx:'03', level:'cat' });
+  renderSaddleShape(selle);
+  saddleRefresh = renderParamEditor(selle, {
+    idPrefix:'saddle', fields:SADDLE_FIELDS, standard:saddleStandard,
+    draft:saddleDraft, applied:saddleApplied,
+    apply:() => Object.assign(saddleApplied, saddleDraft),
+  });
 }
 
 /* Taille de roue — menu de standards, appliqué en direct. */
@@ -686,6 +716,29 @@ function renderWheelSize(parent){
   const sel = pick.querySelector('#wheelsize-select');
   sel.value = wheelSize;
   sel.addEventListener('change', () => { wheelSize = sel.value; update(); });
+}
+
+/* Forme de selle — menu ; pré-remplit longueur/largeur au modèle de référence. */
+function renderSaddleShape(parent){
+  const pick = document.createElement('div');
+  pick.className = 'frame-picker';
+  pick.innerHTML = `<label class="field-label" for="saddle-shape">Forme</label>
+    <select id="saddle-shape">${SADDLE_SHAPES.map(s => `<option value="${s.id}">${s.label}</option>`).join('')}</select>`;
+  parent.appendChild(pick);
+  const sel = pick.querySelector('#saddle-shape');
+  sel.value = saddleShape;
+  sel.addEventListener('change', () => {
+    saddleShape = sel.value;
+    const sh = SADDLE_SHAPES.find(s => s.id === saddleShape);
+    // nouvelle forme -> reprend les mesures de référence (redevient le standard)
+    saddleStandard.length_mm = sh.length_mm; saddleStandard.width_mm = sh.width_mm;
+    saddleDraft.length_mm = sh.length_mm;   saddleDraft.width_mm = sh.width_mm;
+    saddleApplied.length_mm = sh.length_mm; saddleApplied.width_mm = sh.width_mm;
+    const li = document.getElementById('saddle-length_mm'); if (li) li.value = sh.length_mm;
+    const wi = document.getElementById('saddle-width_mm');  if (wi) wi.value = sh.width_mm;
+    if (saddleRefresh) saddleRefresh();
+    update();
+  });
 }
 
 /* Éditeur paramétrable générique : rend les champs + bouton Appliquer dans
@@ -728,6 +781,7 @@ function renderParamEditor(parent, o){
     refresh();
   });
   refresh();
+  return refresh;
 }
 
 /* ============================================================
@@ -820,6 +874,11 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   Object.assign(tireDraft, TIRE_STANDARD);
   Object.assign(tireApplied, TIRE_STANDARD);
   wheelSize = '700c';
+  saddleShape = 'semi';
+  const sr = SADDLE_SHAPES.find(s => s.id === saddleShape);
+  Object.assign(saddleStandard, { length_mm:sr.length_mm, width_mm:sr.width_mm, foreaft_mm:0 });
+  Object.assign(saddleDraft, saddleStandard);
+  Object.assign(saddleApplied, saddleStandard);
   renderPanel();
   update();
 });
@@ -986,15 +1045,23 @@ const seatpostMat = mat(SEATPOST_COLOR, { metalness:0.35, roughness:0.40 });
    dépasse par le haut. `lenMm` = distance BB → sommet de la tige, le long de
    l'axe de selle. La tige plonge d'une insertion sous la jonction pour
    suggérer le coulissement. */
+/* Sommet de la tige de selle (point de contact des rails de selle). */
+function seatpostTopPoint(P, lenMm){
+  const seatDir = new THREE.Vector3().subVectors(P.seatTop, P.bb).normalize();
+  const junctionDist = P.bb.distanceTo(P.seatTop);
+  const insertion = Math.min(0.09, junctionDist * 0.5);
+  const topDist = Math.max((lenMm || 0) / 1000, junctionDist - insertion + 0.02);
+  return {
+    seatDir, junctionDist, insertion, topDist,
+    top: new THREE.Vector3().copy(P.bb).addScaledVector(seatDir, topDist),
+  };
+}
+
 function buildSeatpost(P, lenMm){
   const g = new THREE.Group();
-  const seatDir = new THREE.Vector3().subVectors(P.seatTop, P.bb).normalize();
-  const junctionDist = P.bb.distanceTo(P.seatTop);            // BB → sommet du seat tube
-  const insertion = Math.min(0.09, junctionDist * 0.5);       // portion cachée dans le cadre
-  const topDist = Math.max((lenMm || 0) / 1000, junctionDist - insertion + 0.02);
-  const bottom = new THREE.Vector3().copy(P.bb).addScaledVector(seatDir, junctionDist - insertion);
-  const top    = new THREE.Vector3().copy(P.bb).addScaledVector(seatDir, topDist);
-  g.add(tube(bottom, top, 0.0136, seatpostMat));              // ⌀ 27,2 mm
+  const sp = seatpostTopPoint(P, lenMm);
+  const bottom = new THREE.Vector3().copy(P.bb).addScaledVector(sp.seatDir, sp.junctionDist - sp.insertion);
+  g.add(tube(bottom, sp.top, 0.0136, seatpostMat));           // ⌀ 27,2 mm
   return g;
 }
 
@@ -1047,6 +1114,85 @@ function buildWheels(P, rim, tireW, R){
     wheel.position.copy(hub);
     g.add(wheel);
   });
+  return g;
+}
+
+/* ---------- Selle ---------- */
+const saddleShellMat = mat(0x17191d, { metalness:0.2, roughness:0.6, side:THREE.DoubleSide });
+const saddleRailMat  = mat(0x9aa0aa, { metalness:0.7, roughness:0.3 });
+
+/* Profils de coque par forme. Longueur normalisée t : 0 = nez (avant), 1 =
+   arrière. widthFrac = fraction de la demi-largeur maxi ; sideProfile = petit
+   décalage vertical (m) le long de la longueur (galbe/vague). */
+const SADDLE_WIDTH_PROFILE = {
+  flat:  [[0,0.09],[0.15,0.26],[0.45,0.52],[0.80,0.96],[1,0.82]],
+  semi:  [[0,0.12],[0.16,0.34],[0.48,0.64],[0.82,1.00],[1,0.86]],
+  short: [[0,0.24],[0.12,0.50],[0.42,0.86],[0.78,1.00],[1,0.90]],
+};
+const SADDLE_SIDE_PROFILE = {
+  flat:  [[0,-0.004],[0.5,0.000],[1,0.006]],
+  semi:  [[0,-0.012],[0.28,-0.004],[0.60,-0.009],[0.82,0.004],[1,0.016]],
+  short: [[0,-0.006],[0.5,0.000],[1,0.008]],
+};
+function lerpProfile(arr, s){
+  if (s <= arr[0][0]) return arr[0][1];
+  for (let i=1;i<arr.length;i++){
+    if (s <= arr[i][0]){ const [s0,v0]=arr[i-1], [s1,v1]=arr[i]; return v0 + (v1-v0)*(s-s0)/(s1-s0); }
+  }
+  return arr[arr.length-1][1];
+}
+
+/* Construit la selle (coque + rails) posée à plat au sommet de la tige de
+   selle. Ptop = point de contact (rails sur la tige). foreaft (+) avance la
+   selle vers l'avant. La coque est une surface galbée générée par sections. */
+function buildSaddle(Ptop, s, type){
+  const g = new THREE.Group();
+  const L = (s.length_mm || 274) / 1000;
+  const W = (s.width_mm  || 142) / 1000;
+  const offset = (s.foreaft_mm || 0) / 1000;
+  const wp = SADDLE_WIDTH_PROFILE[type] || SADDLE_WIDTH_PROFILE.semi;
+  const sp = SADDLE_SIDE_PROFILE[type]  || SADDLE_SIDE_PROFILE.semi;
+  const centerX = Ptop.x + offset;
+  const baseY   = Ptop.y + 0.05;   // dessous de coque au-dessus des rails
+  const noseX   = centerX + L/2;   // nez vers l'avant (+x)
+
+  // coque : grille de sections (N le long, M en travers)
+  const N = 26, M = 9, pos = [], idx = [];
+  for (let i=0;i<N;i++){
+    const t = i/(N-1);
+    const x = noseX - t*L;
+    const hw = (W/2) * lerpProfile(wp, t);
+    const yc = baseY + lerpProfile(sp, t);
+    for (let j=0;j<M;j++){
+      const v = j/(M-1);
+      const z = -hw + 2*hw*v;
+      const dome = 0.012 * (1 - Math.pow(hw ? z/hw : 0, 2)); // bombé transversal
+      pos.push(x, yc + dome, z);
+    }
+  }
+  for (let i=0;i<N-1;i++) for (let j=0;j<M-1;j++){
+    const a=i*M+j, b=a+1, c=a+M, d=c+1;
+    idx.push(a,c,b, b,c,d);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx); geo.computeVertexNormals();
+  g.add(new THREE.Mesh(geo, saddleShellMat));
+
+  // rails : deux tiges sous la coque + montants avant/arrière + serrage
+  const railY = Ptop.y, railHalf = 0.022;
+  const railFront = centerX + L*0.26, railBack = centerX - L*0.30;
+  [1,-1].forEach(sgn => {
+    const z = sgn*railHalf;
+    g.add(tube(V(railBack, railY, z), V(railFront, railY, z), 0.0035, saddleRailMat));
+    g.add(tube(V(railFront, railY, z), V(railFront, baseY-0.004, z*0.7), 0.0035, saddleRailMat));
+    g.add(tube(V(railBack,  railY, z), V(railBack,  baseY-0.004, z*0.8), 0.0035, saddleRailMat));
+  });
+  // bloc de serrage au sommet de la tige (contact rails ↔ tige)
+  const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.016, 0.05), saddleRailMat);
+  clamp.position.set(Ptop.x, Ptop.y, 0);
+  g.add(clamp);
+
   return g;
 }
 
@@ -1227,8 +1373,10 @@ function update(){
   // roues aux moyeux
   replaceGroup('wheels', buildWheels(currentPoints, rimApplied, tireApplied.width_mm, R_WHEEL));
 
-  // tige de selle (coulisse dans le seat tube du cadre)
+  // tige de selle (coulisse dans le seat tube du cadre) + selle par-dessus
   replaceGroup('seatpost', buildSeatpost(currentPoints, seatpostApplied.length_mm));
+  const seatTop = seatpostTopPoint(currentPoints, seatpostApplied.length_mm).top;
+  replaceGroup('saddle', buildSaddle(seatTop, saddleApplied, saddleShape));
 
   // cockpit — potence + cintre
   replaceGroup('stem', buildStem(currentPoints, stemApplied));
