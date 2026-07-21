@@ -529,13 +529,15 @@ let selection = {
 const DEFAULT_SELECTION = { ...selection };
 
 /* ============================================================
-   CADRE — tube de selle paramétrable (longueur depuis le BB)
-   Couleur distincte (violet), ⌀ 27,2 mm (standard seatpost marché).
+   TIGE DE SELLE (seatpost) — tube qui coulisse À L'INTÉRIEUR du seat tube
+   du cadre et dépasse par le haut. Distinct du seat tube (intégré au cadre).
+   Longueur = distance BB → sommet de la tige, le long de l'axe de selle.
+   Couleur violette, ⌀ 27,2 mm (standard seatpost marché).
    ============================================================ */
-const SEATTUBE_STANDARD = { length_mm: 730 };
-const SEATTUBE_FIELDS = [ { key:'length_mm', label:'Longueur (BB)', unit:'mm' } ];
-let seatTubeDraft   = { ...SEATTUBE_STANDARD };
-let seatTubeApplied = { ...SEATTUBE_STANDARD };
+const SEATPOST_STANDARD = { length_mm: 730 };
+const SEATPOST_FIELDS = [ { key:'length_mm', label:'Longueur (BB)', unit:'mm' } ];
+let seatpostDraft   = { ...SEATPOST_STANDARD };
+let seatpostApplied = { ...SEATPOST_STANDARD };
 
 /* ============================================================
    COCKPIT — potence paramétrable (composant unique éditable)
@@ -597,9 +599,9 @@ function renderPanel(){
     if (cat === 'frame'){
       renderFramePicker(wrap);
       renderParamEditor(wrap, {
-        title:'Tube de selle', swatch:SEATTUBE_SWATCH, idPrefix:'seattube',
-        fields:SEATTUBE_FIELDS, standard:SEATTUBE_STANDARD, draft:seatTubeDraft, applied:seatTubeApplied,
-        apply:() => Object.assign(seatTubeApplied, seatTubeDraft),
+        title:'Tige de selle', swatch:SEATPOST_SWATCH, idPrefix:'seatpost',
+        fields:SEATPOST_FIELDS, standard:SEATPOST_STANDARD, draft:seatpostDraft, applied:seatpostApplied,
+        apply:() => Object.assign(seatpostApplied, seatpostDraft),
       });
     }
 
@@ -651,8 +653,8 @@ function renderParamEditor(parent, o){
   sub.appendChild(editor);
   parent.appendChild(sub);
 
-  // On cherche dans `editor` (référence en mémoire) plutôt que dans le
-  // document : robuste même si `parent` n'est pas encore attaché au DOM.
+  // On cherche dans `editor` (référence en mémoire), robuste même si `parent`
+  // n'est pas encore attaché au DOM.
   const refresh = () => {
     o.fields.forEach(f => {
       const inp = editor.querySelector(`input[data-key="${f.key}"]`);
@@ -764,8 +766,8 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   Object.assign(stemApplied, STEM_STANDARD);
   Object.assign(hbarDraft, HBAR_STANDARD);
   Object.assign(hbarApplied, HBAR_STANDARD);
-  Object.assign(seatTubeDraft, SEATTUBE_STANDARD);
-  Object.assign(seatTubeApplied, SEATTUBE_STANDARD);
+  Object.assign(seatpostDraft, SEATPOST_STANDARD);
+  Object.assign(seatpostApplied, SEATPOST_STANDARD);
   renderPanel();
   update();
 });
@@ -791,15 +793,15 @@ function renderSummary(){
     <span class="rweight mono">${frame.weight ? frame.weight + 'g' : '—'}</span>`;
   rowsEl.appendChild(frameRow);
 
-  const seatRow = document.createElement('div');
-  seatRow.className = 'row';
-  seatRow.innerHTML = `
+  const postRow = document.createElement('div');
+  postRow.className = 'row';
+  postRow.innerHTML = `
     <div style="flex:1; min-width:0;">
-      <span class="rlabel">TUBE DE SELLE</span>
-      <span class="rvalue">${seatTubeApplied.length_mm} mm depuis le BB · ⌀ 27,2</span>
+      <span class="rlabel">TIGE DE SELLE</span>
+      <span class="rvalue">${seatpostApplied.length_mm} mm depuis le BB · ⌀ 27,2</span>
     </div>
     <span class="rweight mono">—</span>`;
-  rowsEl.appendChild(seatRow);
+  rowsEl.appendChild(postRow);
 
   const stemRow = document.createElement('div');
   stemRow.className = 'row';
@@ -889,13 +891,10 @@ let currentPoints = null;      // points d'ancrage du cadre courant, consommés 
 
 /* Couleurs fixes, identiques pour tous les cadres : cadre blanc, fourche
    gris prononcé. On ignore volontairement le champ couleur des données. */
-const FRAME_COLOR    = 0xf2f2f2;   // blanc (le blanc pur masquerait l'ombrage)
-const FORK_COLOR     = 0x4a4a4a;   // gris foncé
-const SEATTUBE_COLOR = 0xb06bd1;   // tube de selle : violet (couleur distincte)
-const SEATTUBE_SWATCH = '#b06bd1';
-const frameTubeMat = mat(FRAME_COLOR,    { metalness:0.25, roughness:0.45 });
-const forkTubeMat  = mat(FORK_COLOR,     { metalness:0.45, roughness:0.40 });
-const seatTubeMat  = mat(SEATTUBE_COLOR, { metalness:0.35, roughness:0.40 });
+const FRAME_COLOR = 0xf2f2f2;   // blanc (le blanc pur masquerait l'ombrage)
+const FORK_COLOR  = 0x4a4a4a;   // gris foncé
+const frameTubeMat = mat(FRAME_COLOR, { metalness:0.25, roughness:0.45 });
+const forkTubeMat  = mat(FORK_COLOR,  { metalness:0.45, roughness:0.40 });
 
 /* Rayons de tube (mètres), calés sur des diamètres réels de vélo route à
    l'échelle de la roue 700C, identiques pour TOUS les cadres. Hiérarchie :
@@ -929,7 +928,7 @@ function addTubePair(g, a, b, zA, zB, r, material){
    Triangle principal en tube unique (plan central) ; bases, haubans et
    fourche en paires qui enjambent la roue. Triangle en blanc, fourche en
    gris prononcé. Ne dessine pas potence/cintre/selle (composants séparés). */
-function buildFrame(frameItem, seatTubeLenMm){
+function buildFrame(frameItem){
   const pts = computeGeometryPoints(frameItem, R_WHEEL);
   const r = DEFAULT_TUBE_R;
   const g = new THREE.Group();
@@ -937,15 +936,8 @@ function buildFrame(frameItem, seatTubeLenMm){
   // triangle principal — tubes uniques dans le plan central
   g.add(tube(pts.seatTop, pts.headTop, r.top, frameTubeMat));        // tube supérieur
   g.add(tube(pts.bb, pts.headBottom, r.down, frameTubeMat));         // tube diagonal
+  g.add(tube(pts.bb, pts.seatTop, r.seat, frameTubeMat));            // tube de selle
   g.add(tube(pts.headBottom, pts.headTop, r.head, frameTubeMat));    // tube de direction
-
-  // tube de selle — couleur distincte (violet), ⌀ 27,2 mm (standard seatpost),
-  // tracé du BB le long de l'axe de selle sur la longueur demandée (depuis le
-  // BB). Dépasse au-dessus de la jonction du tube supérieur comme une tige.
-  const seatDir = new THREE.Vector3().subVectors(pts.seatTop, pts.bb).normalize();
-  const seatLen = Math.max((seatTubeLenMm || 0) / 1000, 0.001);
-  const seatTubeTop = new THREE.Vector3().copy(pts.bb).addScaledVector(seatDir, seatLen);
-  g.add(tube(pts.bb, seatTubeTop, 0.0136, seatTubeMat));            // ⌀ 27,2 mm
 
   // boîtier de pédalier BSA (route) : coquille filetée 68 mm de large,
   // ⌀ ~40 mm, axe aligné sur l'axe de pédalier (Z). Remplit la jonction
@@ -972,6 +964,28 @@ const HBAR_COLOR   = 0xefc93a; // cintre : jaune
 const stemMat   = mat(STEM_COLOR,   { metalness:0.45, roughness:0.40 });
 const spacerMat = mat(SPACER_COLOR, { metalness:0.35, roughness:0.50 });
 const hbarMat   = mat(HBAR_COLOR,   { metalness:0.40, roughness:0.40 });
+
+/* Tige de selle (seatpost) — violet, ⌀ 27,2 mm (standard marché). */
+const SEATPOST_COLOR  = 0xb06bd1;
+const SEATPOST_SWATCH = '#b06bd1';
+const seatpostMat = mat(SEATPOST_COLOR, { metalness:0.35, roughness:0.40 });
+
+/* Tige de selle : tube ⌀ 27,2 mm qui coulisse DANS le seat tube du cadre
+   (donc partiellement caché par le tube de selle blanc, plus large) et
+   dépasse par le haut. `lenMm` = distance BB → sommet de la tige, le long de
+   l'axe de selle. La tige plonge d'une insertion sous la jonction pour
+   suggérer le coulissement. */
+function buildSeatpost(P, lenMm){
+  const g = new THREE.Group();
+  const seatDir = new THREE.Vector3().subVectors(P.seatTop, P.bb).normalize();
+  const junctionDist = P.bb.distanceTo(P.seatTop);            // BB → sommet du seat tube
+  const insertion = Math.min(0.09, junctionDist * 0.5);       // portion cachée dans le cadre
+  const topDist = Math.max((lenMm || 0) / 1000, junctionDist - insertion + 0.02);
+  const bottom = new THREE.Vector3().copy(P.bb).addScaledVector(seatDir, junctionDist - insertion);
+  const top    = new THREE.Vector3().copy(P.bb).addScaledVector(seatDir, topDist);
+  g.add(tube(bottom, top, 0.0136, seatpostMat));              // ⌀ 27,2 mm
+  return g;
+}
 
 /* Géométrie de la potence : renvoie le collier steerer (p0), le collier de
    cintre (p1) et les axes utiles. Partagé par la potence et le cintre. */
@@ -1139,9 +1153,12 @@ function update(){
   const frameItem = findPart('frame', selection.frame);
   renderGeometryPanel(frameItem);
 
-  const built = buildFrame(frameItem, seatTubeApplied.length_mm);
+  const built = buildFrame(frameItem);
   replaceGroup('frame', built.group);
   currentPoints = built.points;
+
+  // tige de selle (coulisse dans le seat tube du cadre)
+  replaceGroup('seatpost', buildSeatpost(currentPoints, seatpostApplied.length_mm));
 
   // cockpit — potence + cintre
   replaceGroup('stem', buildStem(currentPoints, stemApplied));
