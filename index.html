@@ -46,12 +46,12 @@
     width: 100vw;
     height: 100vh;
     display: grid;
-    grid-template-columns: 320px 1fr;
-    grid-template-rows: 1fr auto;
-    grid-template-areas:
-      "sidebar canvas"
-      "sidebar summary";
+    grid-template-columns: 320px 0px 1fr;   /* sidebar · tiroir géométrie · 3D */
+    grid-template-rows: 1fr;
+    grid-template-areas: "sidebar geom canvas";
+    transition: grid-template-columns 0.28s cubic-bezier(.4,0,.2,1);
   }
+  #app.geom-open{ grid-template-columns: 320px 360px 1fr; }
 
   /* ---------- Canvas / 3D ---------- */
   #canvas-wrap{
@@ -208,78 +208,70 @@
   }
   #reset-btn:hover{ border-color: var(--accent-dim); color: var(--text); }
 
-  /* ---------- Summary bar ---------- */
-  #summary{
-    grid-area: summary;
-    background: var(--panel-solid);
-    border-top: 1px solid var(--border-soft);
-    padding: 14px 24px;
-    z-index: 5;
+  /* ---------- Accordéon (panneau gauche) ---------- */
+  .acc-cat{ border-bottom:1px solid var(--border-soft); }
+  .acc-head{
+    display:flex; align-items:center; gap:9px; width:100%;
+    background:transparent; border:none; cursor:pointer; text-align:left;
+    color:var(--text); font-family:'Space Grotesk',sans-serif; padding:12px 2px;
   }
-  #summary-top{
-    display:flex; align-items:center; justify-content:space-between;
-    flex-wrap: wrap; gap: 14px 28px;
-    margin-bottom: 10px;
-  }
-  .status{
-    display:flex; align-items:center; gap:9px;
-    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:0.02em;
-  }
-  .status .pip{ width:8px; height:8px; border-radius:50%; }
-  .status.ok .pip{ background: var(--ok); box-shadow:0 0 8px var(--ok); }
-  .status.warn .pip{ background: var(--warn); box-shadow:0 0 8px var(--warn); }
-  .status.ok .txt{ color: var(--ok); }
-  .status.warn .txt{ color: var(--warn); }
+  .acc-cat > .acc-head .acc-title{ font-size:13px; font-weight:600; letter-spacing:0.01em; }
+  .acc-sub > .acc-head .acc-title{ font-size:12px; font-weight:500; color:var(--text-dim); }
+  .acc-head:hover .acc-title{ color:var(--text); }
+  .acc-chevron{ font-size:9px; color:var(--text-faint); transition:transform 0.18s ease; width:9px; flex-shrink:0; }
+  .acc-head.open .acc-chevron{ transform:rotate(90deg); color:var(--accent); }
+  .acc-head .swatch{ width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+  .acc-idx{ margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-faint); }
+  .acc-body{ padding:2px 2px 14px; }
+  .acc-sub{ border-top:1px dashed var(--border-soft); }
+  .acc-sub .acc-body{ padding:0 0 12px; }
 
-  .weight-total{ font-family:'JetBrains Mono',monospace; font-size:12px; color: var(--text-dim); }
-  .weight-total b{ color: var(--text); font-size:15px; font-weight:700; }
+  /* bouton Geometry chart */
+  .geom-chart-btn{
+    display:flex; align-items:center; gap:8px; width:100%; margin-top:12px;
+    padding:9px 11px; border-radius:var(--radius); cursor:pointer;
+    background:rgba(79,157,222,0.08); border:1px solid var(--accent-dim);
+    color:var(--text); font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.04em;
+  }
+  .geom-chart-btn:hover{ background:rgba(79,157,222,0.16); border-color:var(--accent); }
+  .geom-chart-btn.active{ background:var(--accent-dim); border-color:var(--accent); }
+  .geom-chart-btn .gc-ico{ font-size:13px; }
 
-  .rows{
-    display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 10px 18px;
+  /* ---------- Tiroir géométrie (pousse la 3D) ---------- */
+  #geom-drawer{
+    grid-area:geom; overflow:hidden; min-width:0;
+    background:var(--panel-solid); border-right:1px solid var(--border-soft);
   }
-  .row{
-    display:flex; align-items:center; gap:8px;
-    border-left: 2px solid var(--border-soft);
-    padding-left: 9px;
+  .geom-drawer-inner{ width:360px; height:100%; display:flex; flex-direction:column; }
+  .geom-drawer-head{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+    padding:18px 18px 12px; border-bottom:1px solid var(--border-soft);
   }
-  .row.warn{ border-left-color: var(--warn); }
-  .row .rlabel{ font-family:'JetBrains Mono',monospace; font-size:9px; color: var(--text-faint); text-transform:uppercase; letter-spacing:0.06em; display:block; }
-  .row .rvalue{ font-size:12.5px; margin-top:1px; }
-  .row.warn .rvalue{ color: var(--warn); }
-  .row .rweight{ margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color: var(--text-faint); }
-
-  #issues{ margin-top: 10px; display:flex; flex-direction:column; gap:5px; }
-  .issue{
-    font-family:'JetBrains Mono',monospace; font-size:11px; color: var(--warn);
-    display:flex; gap:7px; align-items:flex-start; line-height:1.4;
+  .geom-drawer-head .gd-eyebrow{
+    font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--accent);
+    letter-spacing:0.14em; text-transform:uppercase; margin-bottom:5px;
   }
-  .issue::before{ content:"⚠"; flex-shrink:0; }
-
-  #geom-panel{ margin-top: 14px; border-top: 1px solid var(--border-soft); padding-top: 12px; }
-  .geom-head{
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
-    margin-bottom: 9px;
+  .geom-drawer-head .gd-title{ font-size:14px; font-weight:700; display:flex; align-items:center; gap:9px; }
+  #geom-close{
+    background:transparent; border:1px solid var(--border-soft); color:var(--text-dim);
+    width:26px; height:26px; border-radius:var(--radius); cursor:pointer; font-size:12px; flex-shrink:0;
   }
-  .geom-head .geom-title{ font-size:12.5px; font-weight:600; }
-  .geom-head .geom-title i{ font-style:normal; color: var(--text-faint); font-size:10.5px; font-weight:400; }
-  .geom-table-wrap{ max-height: 220px; overflow-y:auto; border:1px solid var(--border-soft); border-radius: var(--radius); }
-  .geom-table-wrap::-webkit-scrollbar{ width:6px; }
-  .geom-table-wrap::-webkit-scrollbar-thumb{ background: var(--border); border-radius:4px; }
-  table.geom-table{ width:100%; border-collapse:collapse; font-size:11.5px; }
-  table.geom-table td{ padding:5px 10px; border-bottom:1px solid var(--border-soft); }
+  #geom-close:hover{ border-color:var(--warn); color:var(--warn); }
+  .geom-size-badge{
+    font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:var(--accent);
+    background:rgba(79,157,222,0.12); border:1px solid var(--accent-dim); padding:1px 9px; border-radius:20px;
+  }
+  #geom-panel{ padding:8px 18px 22px; overflow-y:auto; flex:1; }
+  #geom-panel::-webkit-scrollbar{ width:6px; }
+  #geom-panel::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
+  table.geom-table{ width:100%; border-collapse:collapse; font-size:12px; }
+  table.geom-table td{ padding:6px 4px; border-bottom:1px solid var(--border-soft); }
   table.geom-table tr:last-child td{ border-bottom:none; }
   .geom-label{ color: var(--text-dim); white-space:nowrap; }
   .geom-value{ font-family:'JetBrains Mono',monospace; text-align:right; color: var(--text); }
-  .geom-unit{ color: var(--text-faint); font-size:10px; width:26px; }
+  .geom-unit{ color: var(--text-faint); font-size:10px; width:26px; padding-left:6px; }
 
-  /* ---------- Cockpit : sous-sections & éditeurs ---------- */
-  .cockpit-sub{ margin-top:14px; }
-  .cockpit-sub:first-of-type{ margin-top:4px; }
-  .cockpit-sub-head{
-    display:flex; align-items:center; gap:7px; margin-bottom:7px;
-    font-size:12px; font-weight:600; color: var(--text);
-  }
-  .cockpit-sub-head .swatch{ width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+  /* ---------- Éditeurs paramétrables (dans l'accordéon) ---------- */
   .stem-editor{ display:flex; flex-direction:column; gap:7px; margin-top:2px; }
   .stem-row{ display:flex; align-items:center; gap:8px; }
   .stem-row label{ flex:1; font-size:12px; color: var(--text-dim); }
@@ -312,11 +304,12 @@
   @media (max-width: 880px){
     #app{
       grid-template-columns: 1fr;
-      grid-template-rows: 42vh 1fr auto;
-      grid-template-areas: "canvas" "sidebar" "summary";
+      grid-template-rows: 42vh 1fr;
+      grid-template-areas: "canvas" "sidebar";
     }
+    #app.geom-open{ grid-template-columns: 1fr; }
     #sidebar{ border-right:none; border-top:1px solid var(--border-soft); border-bottom:1px solid var(--border-soft); }
-    .rows{ grid-template-columns: repeat(2, 1fr); }
+    #geom-drawer{ display:none; }
   }
 </style>
 </head>
@@ -328,13 +321,26 @@
     <div class="brand-header">
       <div class="eyebrow">Atelier // Cadre &amp; cockpit</div>
       <h1>Configurateur de vélo</h1>
-      <p>Choisis un cadre et sa taille, puis règle la potence. Le vélo et le résumé en bas se mettent à jour en direct.</p>
+      <p>Choisis un cadre et sa taille, puis règle le cockpit. Le vélo se met à jour en direct.</p>
     </div>
 
     <div id="categories"></div>
 
     <button id="reset-btn">↺ Configuration par défaut</button>
   </aside>
+
+  <div id="geom-drawer">
+    <div class="geom-drawer-inner">
+      <div class="geom-drawer-head">
+        <div>
+          <div class="gd-eyebrow">Geometry chart</div>
+          <div class="gd-title" id="geom-drawer-title">Géométrie du cadre</div>
+        </div>
+        <button id="geom-close" title="Fermer">✕</button>
+      </div>
+      <div id="geom-panel"></div>
+    </div>
+  </div>
 
   <div id="canvas-wrap">
     <canvas id="scene-canvas"></canvas>
@@ -360,18 +366,6 @@
         </div>
       </div>
     </div>
-  </div>
-
-  <div id="summary">
-    <div id="summary-top">
-      <div id="status" class="status ok">
-        <span class="pip"></span>
-        <span class="txt">Chargement…</span>
-      </div>
-      <div class="weight-total mono">Poids total configuré &nbsp; <b id="total-weight">—</b></div>
-    </div>
-    <div class="rows" id="rows"></div>
-    <div id="geom-panel"></div>
   </div>
 
 </div>
@@ -571,77 +565,187 @@ let hbarDraft   = { ...HBAR_STANDARD };
 let hbarApplied = { ...HBAR_STANDARD };
 
 /* ============================================================
-   UI — panneau gauche
+   ROUE — jante (vraies valeurs), taille de roue, pneu (par-dessus)
+   Rayon de roulement = rayon jante (ISO/2) + hauteur de pneu.
+   ============================================================ */
+const RIM_STANDARD = { rim_internal_mm:21, rim_external_mm:28, rim_depth_mm:40, spokes_count:24 };
+const RIM_FIELDS = [
+  { key:'rim_internal_mm', label:'Rim internal', unit:'mm' },
+  { key:'rim_external_mm', label:'Rim external', unit:'mm' },
+  { key:'rim_depth_mm',    label:'Rim depth',    unit:'mm' },
+  { key:'spokes_count',    label:'Spokes',       unit:''   },
+];
+let rimDraft   = { ...RIM_STANDARD };
+let rimApplied = { ...RIM_STANDARD };
+
+const TIRE_STANDARD = { width_mm:28 };
+const TIRE_FIELDS = [ { key:'width_mm', label:'Largeur pneu', unit:'mm' } ];
+let tireDraft   = { ...TIRE_STANDARD };
+let tireApplied = { ...TIRE_STANDARD };
+
+const WHEEL_SIZES = [
+  { id:'700c', label:'700C', iso_mm:622 },
+  { id:'650b', label:'650B', iso_mm:584 },
+];
+let wheelSize = '700c'; // appliqué en direct
+function wheelISOmm(){ return (WHEEL_SIZES.find(w => w.id === wheelSize) || WHEEL_SIZES[0]).iso_mm; }
+/* rayon de roulement (m) : bord de jante (ISO/2) + hauteur de pneu ≈ largeur */
+function wheelRadiusM(){ return (wheelISOmm()/2 + (tireApplied.width_mm || 0)) / 1000; }
+
+/* ============================================================
+   SELLE — 3 formes de référence (longueur × largeur), rails, av/arrière.
+   Montée par les rails sur le sommet de la tige de selle (point de contact).
+   ============================================================ */
+const SADDLE_SHAPES = [
+  { id:'flat',  label:'Plate / longue (Arione)',  length_mm:300, width_mm:132 },
+  { id:'semi',  label:'Semi-ronde (Antares)',     length_mm:274, width_mm:142 },
+  { id:'short', label:'Nez court (S-Works Power)', length_mm:240, width_mm:143 },
+];
+const SADDLE_FIELDS = [
+  { key:'length_mm',  label:'Longueur', unit:'mm' },
+  { key:'width_mm',   label:'Largeur',  unit:'mm' },
+  { key:'foreaft_mm', label:'Av / Ar',  unit:'mm' }, // + = avancer (vers l'avant)
+];
+let saddleShape = 'semi';
+const _saddleRef = SADDLE_SHAPES.find(s => s.id === saddleShape);
+let saddleStandard = { length_mm:_saddleRef.length_mm, width_mm:_saddleRef.width_mm, foreaft_mm:0 };
+let saddleDraft    = { ...saddleStandard };
+let saddleApplied  = { ...saddleStandard };
+let saddleRefresh  = null; // callback pour rafraîchir l'éditeur depuis le sélecteur de forme
+
+/* ============================================================
+   UI — panneau gauche (accordéon repliable, tout replié par défaut)
    ============================================================ */
 const categoriesEl = document.getElementById('categories');
+const COCKPIT_COLORS = { stem:'#2fbf6b', hbar:'#efc93a' }; // pastilles = couleurs 3D
 
-function visibleCategories(){ return ['frame']; }
+/* Crée un bloc repliable (catégorie ou sous-catégorie) et renvoie son corps
+   (vide, à remplir). Fermé par défaut. */
+function collapsible(parent, { title, idx, level='cat', swatch }){
+  const wrap = document.createElement('div');
+  wrap.className = level === 'cat' ? 'acc-cat' : 'acc-sub';
+  const head = document.createElement('button');
+  head.className = 'acc-head';
+  head.innerHTML =
+    `<span class="acc-chevron">▶</span>` +
+    (swatch ? `<span class="swatch" style="background:${swatch}"></span>` : '') +
+    `<span class="acc-title">${title}</span>` +
+    (idx ? `<span class="acc-idx mono">${idx}</span>` : '');
+  const body = document.createElement('div');
+  body.className = 'acc-body';
+  body.style.display = 'none';
+  head.addEventListener('click', () => {
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : '';
+    head.classList.toggle('open', !isOpen);
+  });
+  wrap.append(head, body);
+  parent.appendChild(wrap);
+  return body;
+}
 
 function renderPanel(){
   categoriesEl.innerHTML = '';
-  visibleCategories().forEach(cat => {
-    const meta = CATEGORY_META[cat];
-    const wrap = document.createElement('div');
-    wrap.className = 'category';
 
-    const head = document.createElement('div');
-    head.className = 'category-head';
-    head.innerHTML = `<span class="name">${meta.label}</span><span class="idx mono">${meta.n}</span>`;
-    wrap.appendChild(head);
-
-    if (meta.desc){
-      const desc = document.createElement('div');
-      desc.className = 'category-desc';
-      desc.textContent = meta.desc;
-      wrap.appendChild(desc);
-    }
-
-    if (cat === 'frame'){
-      renderFramePicker(wrap);
-      renderParamEditor(wrap, {
-        title:'Tige de selle', swatch:SEATPOST_SWATCH, idPrefix:'seatpost',
-        fields:SEATPOST_FIELDS, standard:SEATPOST_STANDARD, draft:seatpostDraft, applied:seatpostApplied,
-        apply:() => Object.assign(seatpostApplied, seatpostDraft),
-      });
-    }
-
-    categoriesEl.appendChild(wrap);
+  // ---- Cadre ----
+  const cadre = collapsible(categoriesEl, { title:'Cadre', idx:'00', level:'cat' });
+  renderFramePicker(cadre);                       // Modèle + Taille toujours visibles
+  const postBody = collapsible(cadre, { title:'Tige de selle', swatch:SEATPOST_SWATCH, level:'sub' });
+  renderParamEditor(postBody, {
+    idPrefix:'seatpost', fields:SEATPOST_FIELDS, standard:SEATPOST_STANDARD,
+    draft:seatpostDraft, applied:seatpostApplied,
+    apply:() => Object.assign(seatpostApplied, seatpostDraft),
   });
+  const geomBtn = document.createElement('button');
+  geomBtn.className = 'geom-chart-btn';
+  geomBtn.id = 'geom-chart-btn';
+  geomBtn.innerHTML = `<span class="gc-ico">📐</span> Geometry chart`;
+  geomBtn.addEventListener('click', toggleGeomDrawer);
+  cadre.appendChild(geomBtn);
 
-  // Cockpit (potence)
-  renderCockpit();
-}
-
-/* ============================================================
-   COCKPIT — deux sous-sections éditables : Potence & Cintre
-   ============================================================ */
-const COCKPIT_COLORS = { stem:'#2fbf6b', hbar:'#efc93a' }; // pastilles = couleurs 3D
-
-function renderCockpit(){
-  const wrap = document.createElement('div');
-  wrap.className = 'category';
-  wrap.innerHTML = `<div class="category-head"><span class="name">Cockpit</span><span class="idx mono">01</span></div>`;
-  categoriesEl.appendChild(wrap);
-
-  renderParamEditor(wrap, {
-    title:'Potence', swatch:COCKPIT_COLORS.stem, idPrefix:'stem',
-    fields:STEM_FIELDS, standard:STEM_STANDARD, draft:stemDraft, applied:stemApplied,
+  // ---- Cockpit ----
+  const cockpit = collapsible(categoriesEl, { title:'Cockpit', idx:'01', level:'cat' });
+  const stemBody = collapsible(cockpit, { title:'Potence', swatch:COCKPIT_COLORS.stem, level:'sub' });
+  renderParamEditor(stemBody, {
+    idPrefix:'stem', fields:STEM_FIELDS, standard:STEM_STANDARD,
+    draft:stemDraft, applied:stemApplied,
     apply:() => Object.assign(stemApplied, stemDraft),
   });
-  renderParamEditor(wrap, {
-    title:'Cintre', swatch:COCKPIT_COLORS.hbar, idPrefix:'hbar',
-    fields:HBAR_FIELDS, standard:HBAR_STANDARD, draft:hbarDraft, applied:hbarApplied,
+  const hbarBody = collapsible(cockpit, { title:'Cintre', swatch:COCKPIT_COLORS.hbar, level:'sub' });
+  renderParamEditor(hbarBody, {
+    idPrefix:'hbar', fields:HBAR_FIELDS, standard:HBAR_STANDARD,
+    draft:hbarDraft, applied:hbarApplied,
     apply:() => Object.assign(hbarApplied, hbarDraft),
+  });
+
+  // ---- Roue ----
+  const roue = collapsible(categoriesEl, { title:'Roue', idx:'02', level:'cat' });
+  const janteBody = collapsible(roue, { title:'Jante', swatch:RIM_SWATCH, level:'sub' });
+  renderParamEditor(janteBody, {
+    idPrefix:'rim', fields:RIM_FIELDS, standard:RIM_STANDARD,
+    draft:rimDraft, applied:rimApplied,
+    apply:() => Object.assign(rimApplied, rimDraft),
+  });
+  const sizeBody = collapsible(roue, { title:'Wheel size', level:'sub' });
+  renderWheelSize(sizeBody);
+  const tireBody = collapsible(roue, { title:'Pneu', swatch:TIRE_SWATCH, level:'sub' });
+  renderParamEditor(tireBody, {
+    idPrefix:'tire', fields:TIRE_FIELDS, standard:TIRE_STANDARD,
+    draft:tireDraft, applied:tireApplied,
+    apply:() => Object.assign(tireApplied, tireDraft),
+  });
+
+  // ---- Selle ----
+  const selle = collapsible(categoriesEl, { title:'Selle', idx:'03', level:'cat' });
+  renderSaddleShape(selle);
+  saddleRefresh = renderParamEditor(selle, {
+    idPrefix:'saddle', fields:SADDLE_FIELDS, standard:saddleStandard,
+    draft:saddleDraft, applied:saddleApplied,
+    apply:() => Object.assign(saddleApplied, saddleDraft),
   });
 }
 
-/* Éditeur paramétrable générique (une sous-section) : champs éditables,
-   surlignage orange quand ≠ standard, bouton Appliquer orange quand des
-   changements restent à pousser en 3D. */
+/* Taille de roue — menu de standards, appliqué en direct. */
+function renderWheelSize(parent){
+  const pick = document.createElement('div');
+  pick.className = 'frame-picker';
+  pick.innerHTML = `<select id="wheelsize-select">${
+    WHEEL_SIZES.map(w => `<option value="${w.id}">${w.label} — ${w.iso_mm} mm</option>`).join('')
+  }</select>`;
+  parent.appendChild(pick);
+  const sel = pick.querySelector('#wheelsize-select');
+  sel.value = wheelSize;
+  sel.addEventListener('change', () => { wheelSize = sel.value; update(); });
+}
+
+/* Forme de selle — menu ; pré-remplit longueur/largeur au modèle de référence. */
+function renderSaddleShape(parent){
+  const pick = document.createElement('div');
+  pick.className = 'frame-picker';
+  pick.innerHTML = `<label class="field-label" for="saddle-shape">Forme</label>
+    <select id="saddle-shape">${SADDLE_SHAPES.map(s => `<option value="${s.id}">${s.label}</option>`).join('')}</select>`;
+  parent.appendChild(pick);
+  const sel = pick.querySelector('#saddle-shape');
+  sel.value = saddleShape;
+  sel.addEventListener('change', () => {
+    saddleShape = sel.value;
+    const sh = SADDLE_SHAPES.find(s => s.id === saddleShape);
+    // nouvelle forme -> reprend les mesures de référence (redevient le standard)
+    saddleStandard.length_mm = sh.length_mm; saddleStandard.width_mm = sh.width_mm;
+    saddleDraft.length_mm = sh.length_mm;   saddleDraft.width_mm = sh.width_mm;
+    saddleApplied.length_mm = sh.length_mm; saddleApplied.width_mm = sh.width_mm;
+    const li = document.getElementById('saddle-length_mm'); if (li) li.value = sh.length_mm;
+    const wi = document.getElementById('saddle-width_mm');  if (wi) wi.value = sh.width_mm;
+    if (saddleRefresh) saddleRefresh();
+    update();
+  });
+}
+
+/* Éditeur paramétrable générique : rend les champs + bouton Appliquer dans
+   `parent` (l'en-tête/titre est porté par le bloc repliable qui l'entoure).
+   Champs orange quand ≠ standard, bouton orange quand des changements
+   restent à pousser en 3D. */
 function renderParamEditor(parent, o){
-  const sub = document.createElement('div');
-  sub.className = 'cockpit-sub';
-  sub.innerHTML = `<div class="cockpit-sub-head"><span class="swatch" style="background:${o.swatch}"></span>${o.title}</div>`;
   const editor = document.createElement('div');
   editor.className = 'stem-editor';
   editor.innerHTML = o.fields.map(f => `
@@ -650,8 +754,7 @@ function renderParamEditor(parent, o){
       <input id="${o.idPrefix}-${f.key}" type="number" step="0.1" value="${o.draft[f.key]}" data-key="${f.key}">
       <span class="stem-unit">${f.unit}</span>
     </div>`).join('') + `<button class="param-apply" id="${o.idPrefix}-apply">Appliquer à la 3D</button>`;
-  sub.appendChild(editor);
-  parent.appendChild(sub);
+  parent.appendChild(editor);
 
   // On cherche dans `editor` (référence en mémoire), robuste même si `parent`
   // n'est pas encore attaché au DOM.
@@ -678,6 +781,7 @@ function renderParamEditor(parent, o){
     refresh();
   });
   refresh();
+  return refresh;
 }
 
 /* ============================================================
@@ -716,8 +820,7 @@ function syncFramePickerUI(){
   const part = findPart('frame', selection.frame);
   frameModelInputEl.value = frameModelLabel(part);
   populateFrameSizes(frameModelLabel(part), part.id);
-  // pastille = couleur de rendu du cadre (blanc, fixe pour tous les cadres)
-  frameMetaEl.innerHTML = `<span class="dot" style="background:#f2f2f2; border:1px solid var(--border)"></span><span>${part.weight ? part.weight + ' g' : '—'}</span>`;
+  if (geomDrawerOpen) renderGeometryPanel(part); // garder le tiroir à jour
 }
 
 function renderFramePicker(wrap){
@@ -737,13 +840,11 @@ function renderFramePicker(wrap){
       <label class="field-label" for="frame-size-select">Taille</label>
       <select id="frame-size-select"></select>
     </div>
-    <div class="frame-meta" id="frame-meta"></div>
   `;
   wrap.appendChild(picker);
 
   frameModelInputEl = picker.querySelector('#frame-model-input');
   frameSizeSelectEl = picker.querySelector('#frame-size-select');
-  frameMetaEl = picker.querySelector('#frame-meta');
 
   frameModelInputEl.addEventListener('input', () => {
     const name = frameModelInputEl.value.trim();
@@ -768,66 +869,35 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   Object.assign(hbarApplied, HBAR_STANDARD);
   Object.assign(seatpostDraft, SEATPOST_STANDARD);
   Object.assign(seatpostApplied, SEATPOST_STANDARD);
+  Object.assign(rimDraft, RIM_STANDARD);
+  Object.assign(rimApplied, RIM_STANDARD);
+  Object.assign(tireDraft, TIRE_STANDARD);
+  Object.assign(tireApplied, TIRE_STANDARD);
+  wheelSize = '700c';
+  saddleShape = 'semi';
+  const sr = SADDLE_SHAPES.find(s => s.id === saddleShape);
+  Object.assign(saddleStandard, { length_mm:sr.length_mm, width_mm:sr.width_mm, foreaft_mm:0 });
+  Object.assign(saddleDraft, saddleStandard);
+  Object.assign(saddleApplied, saddleStandard);
   renderPanel();
   update();
 });
 
 /* ============================================================
-   UI — barre résumé
+   TIROIR GÉOMÉTRIE — ouverture/fermeture (pousse la 3D)
    ============================================================ */
-const rowsEl = document.getElementById('rows');
-const statusEl = document.getElementById('status');
-const totalWeightEl = document.getElementById('total-weight');
+let geomDrawerOpen = false;
+const appEl = document.getElementById('app');
 
-function renderSummary(){
-  rowsEl.innerHTML = '';
-
-  const frame = findPart('frame', selection.frame);
-  const frameRow = document.createElement('div');
-  frameRow.className = 'row';
-  frameRow.innerHTML = `
-    <div style="flex:1; min-width:0;">
-      <span class="rlabel">${CATEGORY_META.frame.short}</span>
-      <span class="rvalue">${frame.brand ? frame.brand + ' ' : ''}${frame.model} · Taille ${frame.taille}</span>
-    </div>
-    <span class="rweight mono">${frame.weight ? frame.weight + 'g' : '—'}</span>`;
-  rowsEl.appendChild(frameRow);
-
-  const postRow = document.createElement('div');
-  postRow.className = 'row';
-  postRow.innerHTML = `
-    <div style="flex:1; min-width:0;">
-      <span class="rlabel">TIGE DE SELLE</span>
-      <span class="rvalue">${seatpostApplied.length_mm} mm depuis le BB · ⌀ 27,2</span>
-    </div>
-    <span class="rweight mono">—</span>`;
-  rowsEl.appendChild(postRow);
-
-  const stemRow = document.createElement('div');
-  stemRow.className = 'row';
-  stemRow.innerHTML = `
-    <div style="flex:1; min-width:0;">
-      <span class="rlabel">POTENCE</span>
-      <span class="rvalue">${stemApplied.length_mm} mm · ${stemApplied.angle_deg >= 0 ? '+' : ''}${stemApplied.angle_deg}° · spacers ${stemApplied.spacers_mm} mm</span>
-    </div>
-    <span class="rweight mono">—</span>`;
-  rowsEl.appendChild(stemRow);
-
-  const flare = hbarApplied.width_bottom_mm - hbarApplied.width_top_mm;
-  const hbarRow = document.createElement('div');
-  hbarRow.className = 'row';
-  hbarRow.innerHTML = `
-    <div style="flex:1; min-width:0;">
-      <span class="rlabel">CINTRE</span>
-      <span class="rvalue">reach ${hbarApplied.reach_mm} · drop ${hbarApplied.drop_mm} mm · ${hbarApplied.angle_deg >= 0 ? '+' : ''}${hbarApplied.angle_deg}°${flare !== 0 ? ` · flare ${flare > 0 ? '+' : ''}${flare} mm` : ''}</span>
-    </div>
-    <span class="rweight mono">—</span>`;
-  rowsEl.appendChild(hbarRow);
-
-  totalWeightEl.textContent = (frame.weight || 0).toLocaleString('fr-CH') + ' g';
-  statusEl.className = 'status ok';
-  statusEl.innerHTML = `<span class="pip"></span><span class="txt">Cadre &amp; cockpit</span>`;
+function setGeomDrawer(open){
+  geomDrawerOpen = open;
+  appEl.classList.toggle('geom-open', open);
+  const btn = document.getElementById('geom-chart-btn');
+  if (btn) btn.classList.toggle('active', open);
+  if (open) renderGeometryPanel(findPart('frame', selection.frame));
 }
+function toggleGeomDrawer(){ setGeomDrawer(!geomDrawerOpen); }
+document.getElementById('geom-close').addEventListener('click', () => setGeomDrawer(false));
 
 /* ============================================================
    THREE.JS — scène
@@ -886,7 +956,7 @@ function tube(p1, p2, r, material, segments=8){
 const V = (x,y,z=0) => new THREE.Vector3(x,y,z);
 
 /* ---------- geometry ---------- */
-const R_WHEEL = 0.335;         // rayon de roue de référence (positionne le BB / les moyeux)
+let R_WHEEL = 0.335;           // rayon de roulement (m), recalculé selon roue + pneu
 let currentPoints = null;      // points d'ancrage du cadre courant, consommés par la potence
 
 /* Couleurs fixes, identiques pour tous les cadres : cadre blanc, fourche
@@ -975,15 +1045,154 @@ const seatpostMat = mat(SEATPOST_COLOR, { metalness:0.35, roughness:0.40 });
    dépasse par le haut. `lenMm` = distance BB → sommet de la tige, le long de
    l'axe de selle. La tige plonge d'une insertion sous la jonction pour
    suggérer le coulissement. */
+/* Sommet de la tige de selle (point de contact des rails de selle). */
+function seatpostTopPoint(P, lenMm){
+  const seatDir = new THREE.Vector3().subVectors(P.seatTop, P.bb).normalize();
+  const junctionDist = P.bb.distanceTo(P.seatTop);
+  const insertion = Math.min(0.09, junctionDist * 0.5);
+  const topDist = Math.max((lenMm || 0) / 1000, junctionDist - insertion + 0.02);
+  return {
+    seatDir, junctionDist, insertion, topDist,
+    top: new THREE.Vector3().copy(P.bb).addScaledVector(seatDir, topDist),
+  };
+}
+
 function buildSeatpost(P, lenMm){
   const g = new THREE.Group();
-  const seatDir = new THREE.Vector3().subVectors(P.seatTop, P.bb).normalize();
-  const junctionDist = P.bb.distanceTo(P.seatTop);            // BB → sommet du seat tube
-  const insertion = Math.min(0.09, junctionDist * 0.5);       // portion cachée dans le cadre
-  const topDist = Math.max((lenMm || 0) / 1000, junctionDist - insertion + 0.02);
-  const bottom = new THREE.Vector3().copy(P.bb).addScaledVector(seatDir, junctionDist - insertion);
-  const top    = new THREE.Vector3().copy(P.bb).addScaledVector(seatDir, topDist);
-  g.add(tube(bottom, top, 0.0136, seatpostMat));              // ⌀ 27,2 mm
+  const sp = seatpostTopPoint(P, lenMm);
+  const bottom = new THREE.Vector3().copy(P.bb).addScaledVector(sp.seatDir, sp.junctionDist - sp.insertion);
+  g.add(tube(bottom, sp.top, 0.0136, seatpostMat));           // ⌀ 27,2 mm
+  return g;
+}
+
+/* ---------- Roues ---------- */
+const RIM_SWATCH  = '#8b93a1';
+const TIRE_SWATCH = '#141417';
+const rimMat   = mat(0x3a3f48, { metalness:0.7,  roughness:0.32 });
+const tireMat  = mat(0x121417, { metalness:0.05, roughness:0.9  });
+const spokeMat = mat(0x9aa0aa, { metalness:0.6,  roughness:0.35 });
+const wheelHubMat = mat(0x50555e, { metalness:0.65, roughness:0.4 });
+
+/* Construit les deux roues aux moyeux du cadre. Vraies valeurs de jante :
+   bord de jante au rayon ISO/2 (bead seat), profondeur vers l'intérieur ;
+   le pneu se pose PAR-DESSUS (de ISO/2 jusqu'au rayon de roulement R). */
+function buildWheels(P, rim, tireW, R){
+  const g = new THREE.Group();
+  const seatR = wheelISOmm() / 2000;                 // rayon bord de jante (m)
+  const depth = Math.max((rim.rim_depth_mm || 40), 5) / 1000;
+  const extW  = Math.max((rim.rim_external_mm || 28), 8) / 1000;
+  const tW    = Math.max((tireW || 28), 18) / 1000;
+  const spokes = Math.max(8, Math.round(rim.spokes_count || 24));
+  const rimMid = seatR - depth / 2;                  // centre radial de la jante
+
+  [P.rearHub, P.frontHub].forEach(hub => {
+    const wheel = new THREE.Group();
+
+    // jante : tore de section (profondeur × largeur externe)
+    const rimTube = depth / 2;
+    const rimMesh = new THREE.Mesh(new THREE.TorusGeometry(rimMid, rimTube, 14, 56), rimMat);
+    rimMesh.scale.z = extW / depth;                  // largeur axiale = rim external
+    wheel.add(rimMesh);
+
+    // pneu : tore rond posé sur la jante (ISO/2 -> R)
+    const tireMesh = new THREE.Mesh(new THREE.TorusGeometry(seatR + tW / 2, tW / 2, 14, 56), tireMat);
+    wheel.add(tireMesh);
+
+    // moyeu
+    const hubMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.052, 16), wheelHubMat);
+    hubMesh.rotation.x = Math.PI / 2;
+    wheel.add(hubMesh);
+
+    // rayons — du moyeu au fond de jante, alternés gauche/droite
+    for (let i = 0; i < spokes; i++){
+      const a = (i / spokes) * Math.PI * 2;
+      const z = (i % 2 === 0 ? 1 : -1) * extW * 0.32;
+      const rimPt = V(Math.cos(a) * (seatR - depth), Math.sin(a) * (seatR - depth), 0);
+      wheel.add(tube(V(0, 0, z), rimPt, 0.0017, spokeMat, 4));
+    }
+
+    wheel.position.copy(hub);
+    g.add(wheel);
+  });
+  return g;
+}
+
+/* ---------- Selle ---------- */
+const saddleShellMat = mat(0x17191d, { metalness:0.2, roughness:0.6, side:THREE.DoubleSide });
+const saddleRailMat  = mat(0x9aa0aa, { metalness:0.7, roughness:0.3 });
+
+/* Profils de coque par forme. Longueur normalisée t : 0 = nez (avant), 1 =
+   arrière. widthFrac = fraction de la demi-largeur maxi ; sideProfile = petit
+   décalage vertical (m) le long de la longueur (galbe/vague). */
+const SADDLE_WIDTH_PROFILE = {
+  flat:  [[0,0.09],[0.15,0.26],[0.45,0.52],[0.80,0.96],[1,0.82]],
+  semi:  [[0,0.12],[0.16,0.34],[0.48,0.64],[0.82,1.00],[1,0.86]],
+  short: [[0,0.24],[0.12,0.50],[0.42,0.86],[0.78,1.00],[1,0.90]],
+};
+const SADDLE_SIDE_PROFILE = {
+  flat:  [[0,-0.004],[0.5,0.000],[1,0.006]],
+  semi:  [[0,-0.012],[0.28,-0.004],[0.60,-0.009],[0.82,0.004],[1,0.016]],
+  short: [[0,-0.006],[0.5,0.000],[1,0.008]],
+};
+function lerpProfile(arr, s){
+  if (s <= arr[0][0]) return arr[0][1];
+  for (let i=1;i<arr.length;i++){
+    if (s <= arr[i][0]){ const [s0,v0]=arr[i-1], [s1,v1]=arr[i]; return v0 + (v1-v0)*(s-s0)/(s1-s0); }
+  }
+  return arr[arr.length-1][1];
+}
+
+/* Construit la selle (coque + rails) posée à plat au sommet de la tige de
+   selle. Ptop = point de contact (rails sur la tige). foreaft (+) avance la
+   selle vers l'avant. La coque est une surface galbée générée par sections. */
+function buildSaddle(Ptop, s, type){
+  const g = new THREE.Group();
+  const L = (s.length_mm || 274) / 1000;
+  const W = (s.width_mm  || 142) / 1000;
+  const offset = (s.foreaft_mm || 0) / 1000;
+  const wp = SADDLE_WIDTH_PROFILE[type] || SADDLE_WIDTH_PROFILE.semi;
+  const sp = SADDLE_SIDE_PROFILE[type]  || SADDLE_SIDE_PROFILE.semi;
+  const centerX = Ptop.x + offset;
+  const baseY   = Ptop.y + 0.05;   // dessous de coque au-dessus des rails
+  const noseX   = centerX + L/2;   // nez vers l'avant (+x)
+
+  // coque : grille de sections (N le long, M en travers)
+  const N = 26, M = 9, pos = [], idx = [];
+  for (let i=0;i<N;i++){
+    const t = i/(N-1);
+    const x = noseX - t*L;
+    const hw = (W/2) * lerpProfile(wp, t);
+    const yc = baseY + lerpProfile(sp, t);
+    for (let j=0;j<M;j++){
+      const v = j/(M-1);
+      const z = -hw + 2*hw*v;
+      const dome = 0.012 * (1 - Math.pow(hw ? z/hw : 0, 2)); // bombé transversal
+      pos.push(x, yc + dome, z);
+    }
+  }
+  for (let i=0;i<N-1;i++) for (let j=0;j<M-1;j++){
+    const a=i*M+j, b=a+1, c=a+M, d=c+1;
+    idx.push(a,c,b, b,c,d);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx); geo.computeVertexNormals();
+  g.add(new THREE.Mesh(geo, saddleShellMat));
+
+  // rails : deux tiges sous la coque + montants avant/arrière + serrage
+  const railY = Ptop.y, railHalf = 0.022;
+  const railFront = centerX + L*0.26, railBack = centerX - L*0.30;
+  [1,-1].forEach(sgn => {
+    const z = sgn*railHalf;
+    g.add(tube(V(railBack, railY, z), V(railFront, railY, z), 0.0035, saddleRailMat));
+    g.add(tube(V(railFront, railY, z), V(railFront, baseY-0.004, z*0.7), 0.0035, saddleRailMat));
+    g.add(tube(V(railBack,  railY, z), V(railBack,  baseY-0.004, z*0.8), 0.0035, saddleRailMat));
+  });
+  // bloc de serrage au sommet de la tige (contact rails ↔ tige)
+  const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.016, 0.05), saddleRailMat);
+  clamp.position.set(Ptop.x, Ptop.y, 0);
+  g.add(clamp);
+
   return g;
 }
 
@@ -1134,31 +1343,40 @@ function renderGeometryPanel(frameItem){
     ? groupHead('Valeurs dérivées / référence') + derivedFields.map(f => dataRow(f, true)).join('')
     : '';
 
+  const label = (frameItem.brand ? frameItem.brand + ' ' : '') + frameItem.model;
   panel.innerHTML = `
-    <div class="geom-head">
-      <span class="geom-title">Géométrie du cadre <i>— taille ${frameItem.taille || ''}</i></span>
+    <div style="font-size:13px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:9px;">
+      ${label} <span class="geom-size-badge">Taille ${frameItem.taille || '—'}</span>
     </div>
-    <div class="geom-table-wrap">
-      <table class="geom-table"><tbody>
-        ${groupHead('Entrées du modèle 3D')}${inputRows}${derivedRows}
-      </tbody></table>
-    </div>
+    <table class="geom-table"><tbody>
+      ${groupHead('Entrées du modèle 3D')}${inputRows}${derivedRows}
+    </tbody></table>
   `;
+  // met à jour le titre du tiroir
+  const t = document.getElementById('geom-drawer-title');
+  if (t) t.textContent = `${label} · ${frameItem.taille || ''}`;
 }
 
 function update(){
   syncFramePickerUI();
-  renderSummary();
+
+  // rayon de roulement recalculé (jante ISO + pneu par-dessus)
+  R_WHEEL = wheelRadiusM();
 
   const frameItem = findPart('frame', selection.frame);
-  renderGeometryPanel(frameItem);
+  if (geomDrawerOpen) renderGeometryPanel(frameItem);
 
   const built = buildFrame(frameItem);
   replaceGroup('frame', built.group);
   currentPoints = built.points;
 
-  // tige de selle (coulisse dans le seat tube du cadre)
+  // roues aux moyeux
+  replaceGroup('wheels', buildWheels(currentPoints, rimApplied, tireApplied.width_mm, R_WHEEL));
+
+  // tige de selle (coulisse dans le seat tube du cadre) + selle par-dessus
   replaceGroup('seatpost', buildSeatpost(currentPoints, seatpostApplied.length_mm));
+  const seatTop = seatpostTopPoint(currentPoints, seatpostApplied.length_mm).top;
+  replaceGroup('saddle', buildSaddle(seatTop, saddleApplied, saddleShape));
 
   // cockpit — potence + cintre
   replaceGroup('stem', buildStem(currentPoints, stemApplied));
@@ -1186,8 +1404,11 @@ canvas.addEventListener('wheel', e => {
   updateCamera();
 }, { passive:false });
 
+let lastW = 0, lastH = 0;
 function resize(){
   const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (w === lastW && h === lastH) return;
+  lastW = w; lastH = h;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
@@ -1196,6 +1417,7 @@ window.addEventListener('resize', resize);
 
 function animate(){
   requestAnimationFrame(animate);
+  resize(); // suit l'ouverture/fermeture du tiroir géométrie (la 3D est poussée)
   if (!isDragging){
     idleT += 0.0016;
     theta += 0.0011;
